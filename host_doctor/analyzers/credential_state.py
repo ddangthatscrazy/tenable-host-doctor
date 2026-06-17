@@ -42,10 +42,12 @@ P_WIN_REGISTRY = 26917       # Nessus Cannot Access the Windows Registry
 P_WIN_REG_START = 35705      # SMB Registry: Starting the Registry Service failed
 P_WIN_REG_STOP = 35706       # SMB Registry: Stopping the Registry Service failed
 P_SSH_RATE_LIMIT = 122501    # SSH Rate Limited Device
-P_PING_UNRESPONSIVE = 10180  # Ping the remote host (unresponsive)
-P_ICMP_UNREACHABLE = 10114   # ICMP unreachable
+# Discovery-RESPONSE plugins: their PRESENCE proves the host answered discovery.
+# (Non-response is signaled by their absence, never by their presence.)
+P_PING_REPLY = 10180         # Ping the remote host (host responded to discovery)
+P_ICMP_TIMESTAMP = 10114     # ICMP Timestamp Request Remote Date Disclosure (host responded)
 
-CONNECTIVITY_PLUGINS = {P_PING_UNRESPONSIVE, P_ICMP_UNREACHABLE}
+DISCOVERY_RESPONSE_PLUGINS = {P_PING_REPLY, P_ICMP_TIMESTAMP}
 
 # Plugins proving the host was actually assessed (not merely pinged).
 ASSESSMENT_PLUGINS = {
@@ -156,15 +158,19 @@ def classify_credential_state(host_data: HostData) -> CredentialState:
 
     additive, add_evidence, add_pids = _collect_additive(host_data)
 
-    # --- Gate: did the host respond to assessment at all? ---
-    assessed = host_data.is_reachable and (
-        any(has(p) for p in ASSESSMENT_PLUGINS) or bool(host_data.vulnerabilities)
+    # --- Gate: did the host respond at all? ---
+    # A host that produced discovery-response plugins, assessment plugins, or any
+    # vulnerability data demonstrably responded. Only call it unreachable when the
+    # parser flagged it unreachable AND there is no response evidence of any kind.
+    has_response = (
+        any(has(p) for p in DISCOVERY_RESPONSE_PLUGINS)
+        or any(has(p) for p in ASSESSMENT_PLUGINS)
+        or bool(host_data.vulnerabilities)
     )
-    if not assessed:
+    if not host_data.is_reachable and not has_response:
         return CredentialState(
             RootCause.NETWORK_UNREACHABLE,
-            evidence=["Host did not respond to assessment; only connectivity/ping plugins fired."],
-            plugin_ids=[p for p in CONNECTIVITY_PLUGINS if has(p)],
+            evidence=["No discovery, assessment, or vulnerability data was produced for this host."],
         )
 
     # --- Axis B (authoritative): did local checks run? ---

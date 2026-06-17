@@ -50,6 +50,28 @@ DIAGNOSTIC_PLUGINS = {
 }
 
 
+def _merge_plugins(existing: "Plugin", new: "Plugin") -> "Plugin":
+    """Combine two Plugin records for the same plugin_id.
+
+    Concatenates distinct, non-empty outputs (preserving order, dropping exact
+    duplicates) so evidence emitted on multiple ports/protocols is not lost.
+    """
+    parts: list[str] = []
+    for body in (existing.plugin_output, new.plugin_output):
+        if body and body not in parts:
+            parts.append(body)
+    merged_output = "\n\n".join(parts) if parts else (existing.plugin_output or new.plugin_output)
+    # Prefer the record that actually carried output for name/family metadata.
+    base = existing if existing.plugin_output else new
+    return Plugin(
+        plugin_id=base.plugin_id,
+        plugin_name=base.plugin_name,
+        family=base.family,
+        severity=max(existing.severity, new.severity),
+        plugin_output=merged_output,
+    )
+
+
 def parse_nessus_file(file_path: Path) -> dict[str, any]:
     """Parse a .nessus file and return structured scan data.
 
@@ -109,9 +131,14 @@ def parse_nessus_file(file_path: Path) -> dict[str, any]:
         if host_data.host_ip in hosts_by_ip:
             existing = hosts_by_ip[host_data.host_ip]
 
-            # Merge plugins (add any new ones)
+            # Merge plugins. On a repeat plugin_id, combine outputs so evidence
+            # from a second host record isn't silently dropped.
             for plugin_id, plugin in host_data.plugins.items():
-                if plugin_id not in existing.plugins:
+                if plugin_id in existing.plugins:
+                    existing.plugins[plugin_id] = _merge_plugins(
+                        existing.plugins[plugin_id], plugin
+                    )
+                else:
                     existing.plugins[plugin_id] = plugin
 
             # Merge vulnerabilities (add any new ones)
@@ -232,15 +259,23 @@ def _parse_host(host_elem: ET.Element) -> HostData:
         output_elem = item.find("plugin_output")
         plugin_output = output_elem.text.strip() if output_elem is not None and output_elem.text else None
 
-        # Store plugin data (especially for diagnostic plugins)
+        # Store plugin data (especially for diagnostic plugins).
+        # Nessus can emit the same plugin_id on multiple ports/protocols; for
+        # diagnostic/auth plugins, losing a body can flip protocol detection or
+        # root-cause classification. So on a repeat ID we MERGE outputs rather than
+        # overwrite (keeping the last would silently drop decisive evidence).
         if plugin_id in DIAGNOSTIC_PLUGINS or plugin_output:
-            plugins[plugin_id] = Plugin(
+            new_plugin = Plugin(
                 plugin_id=plugin_id,
                 plugin_name=plugin_name,
                 family=plugin_family,
                 severity=severity,
                 plugin_output=plugin_output,
             )
+            if plugin_id in plugins:
+                plugins[plugin_id] = _merge_plugins(plugins[plugin_id], new_plugin)
+            else:
+                plugins[plugin_id] = new_plugin
 
         # Add to vulnerabilities list (for query purposes)
         vulnerabilities.append(

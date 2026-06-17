@@ -52,8 +52,8 @@ Repository = "https://github.com/ddangthatscrazy/tenable-host-doctor"
 Documentation = "https://github.com/ddangthatscrazy/tenable-host-doctor/docs"
 Issues = "https://github.com/ddangthatscrazy/tenable-host-doctor/issues"
 
-[tool.setuptools]
-packages = ["host_doctor"]
+[tool.setuptools.packages.find]
+include = ["host_doctor*"]
 
 [tool.black]
 line-length = 100

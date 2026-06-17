@@ -102,8 +102,17 @@ def test_117885_means_intermittent():
 
 
 def test_unreachable_host():
-    host = make_host([(10180, "no answer")], reachable=False)
+    # Genuinely unreachable: parser flagged it down AND no response evidence at all.
+    host = make_host([], reachable=False)
     assert classify_credential_state(host).root_cause == RootCause.NETWORK_UNREACHABLE
+
+
+def test_ping_reply_present_is_not_unreachable():
+    # Plugin 10180 firing means the host DID respond to discovery, so even with
+    # is_reachable=False it must not be classified as unreachable. With no auth
+    # signals it falls through to INDETERMINATE.
+    host = make_host([(10180, "The remote host is up.")], reachable=False)
+    assert classify_credential_state(host).root_cause != RootCause.NETWORK_UNREACHABLE
 
 
 def test_indeterminate_when_no_signals():

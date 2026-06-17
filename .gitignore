@@ -87,3 +87,6 @@ WHY_MERGE_REPORTHOST_ENTRIES.md
 # Environment
 .env
 .env.local
+
+# Local patch artifacts
+*.patch

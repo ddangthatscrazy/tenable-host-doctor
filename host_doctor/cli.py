@@ -294,10 +294,12 @@ def _run_analysis(
         # Run agent
         task = progress.add_task("Running AI diagnostic agent...", total=None)
         from host_doctor.agent.agent import DiagnosticAgent
+        from host_doctor.config import config as host_config
 
         agent = DiagnosticAgent(
             host_data=host_data,
             scan_config=scan_config,
+            model=host_config.SCAN_DOCTOR_MODEL,
             verbose=verbose,
         )
         report = agent.run()

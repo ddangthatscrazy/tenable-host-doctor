@@ -323,8 +323,8 @@ Key plugin IDs used for diagnostics. These drive most of the analysis logic.
 | 21745 | Authentication Failure (legacy) | Older auth failure format |
 | 26917 | SMB Registry Access | Windows registry access succeeded — absence with valid SMB creds indicates UAC/GPO blocking |
 | 117530 | Plugin Execution Errors | Plugin crashed or encountered errors on this host |
-| 10114 | ICMP Destination Unreachable | Network path issues between scanner and host |
-| 10180 | Ping Host Unresponsive | Host not responding to ICMP |
+| 10114 | ICMP Timestamp Request Remote Date Disclosure | Host responded to ICMP — confirms reachability (absence, not presence, indicates non-response) |
+| 10180 | Ping the remote host | Host responded to host discovery — confirms reachability (absence, not presence, indicates non-response) |
 
 Presence of plugins from OS patch families ("Windows : Microsoft Bulletins", "Red Hat Local Security Checks", "Ubuntu Local Security Checks", etc.) is the strongest indicator that credentialed checks fully succeeded.
 

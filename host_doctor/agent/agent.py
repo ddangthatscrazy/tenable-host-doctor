@@ -26,7 +26,7 @@ class DiagnosticAgent:
         self,
         host_data: HostData,
         scan_config: ScanConfig,
-        model: str = "anthropic/claude-sonnet-4-6",
+        model: Optional[str] = None,
         verbose: bool = False,
     ):
         """Initialize diagnostic agent.
@@ -34,12 +34,20 @@ class DiagnosticAgent:
         Args:
             host_data: Parsed host scan data
             scan_config: Parsed scan configuration
-            model: LiteLLM model string (e.g., "anthropic/claude-sonnet-4-20250514")
+            model: LiteLLM model string. If None, falls back to
+                config.SCAN_DOCTOR_MODEL (the single source of truth, set via the
+                SCAN_DOCTOR_MODEL env var documented in the README).
             verbose: Print agent reasoning steps
         """
+        from host_doctor.config import config
+
         self.host_data = host_data
         self.scan_config = scan_config
-        self.model = model
+        self.model = model or config.SCAN_DOCTOR_MODEL
+        # Only run the LLM reasoning loop when a provider is actually configured.
+        # Otherwise we go straight to the deterministic analyzers (the documented
+        # fallback) instead of attempting and failing an LLM call every iteration.
+        self.llm_enabled = config.has_llm_config()
         self.verbose = verbose
 
         # Conversation history
@@ -122,46 +130,52 @@ Be thorough but efficient. When you have high confidence in root cause, generate
 
         self.messages.append({"role": "user", "content": initial_query})
 
-        # Reasoning loop
-        for iteration in range(max_iterations):
+        # Reasoning loop — only when an LLM provider is configured. Without one,
+        # we skip straight to the deterministic analyzers below (messages stays at
+        # system+user, so no LLM enhancement is attempted either).
+        if not self.llm_enabled:
             if self.verbose:
-                print(f"\n[Agent Iteration {iteration + 1}/{max_iterations}]")
-
-            # Get LLM response with tool calls
-            response = self._call_llm()
-
-            # Extract tool calls (returns list of (name, args, tool_call_id))
-            tool_calls = self._extract_tool_calls(response)
-
-            if not tool_calls:
-                # Agent finished reasoning, extract findings
+                print("[Agent] No LLM provider configured; running deterministic analysis only.")
+        else:
+            for iteration in range(max_iterations):
                 if self.verbose:
-                    print("[Agent] Completed investigation")
-                break
+                    print(f"\n[Agent Iteration {iteration + 1}/{max_iterations}]")
 
-            # Add the assistant's message (with tool_calls) to history BEFORE results
-            try:
-                assistant_message = response["choices"][0]["message"]
-                self.messages.append(assistant_message)
-            except (KeyError, IndexError):
-                pass
+                # Get LLM response with tool calls
+                response = self._call_llm()
 
-            # Execute tools
-            tool_results = []
-            for tool_name, args, tool_call_id in tool_calls:
-                if self.verbose:
-                    print(f"  Tool: {tool_name}({args})")
+                # Extract tool calls (returns list of (name, args, tool_call_id))
+                tool_calls = self._extract_tool_calls(response)
 
-                result = self._execute_tool(tool_name, args)
-                tool_results.append((tool_name, result, tool_call_id))
+                if not tool_calls:
+                    # Agent finished reasoning, extract findings
+                    if self.verbose:
+                        print("[Agent] Completed investigation")
+                    break
 
-                if self.verbose and result.success:
-                    print(f"    ✓ Success")
-                elif self.verbose:
-                    print(f"    ✗ Error: {result.error}")
+                # Add the assistant's message (with tool_calls) to history BEFORE results
+                try:
+                    assistant_message = response["choices"][0]["message"]
+                    self.messages.append(assistant_message)
+                except (KeyError, IndexError):
+                    pass
 
-            # Add tool results to conversation (one message per call with tool_call_id)
-            self._append_tool_results(tool_results)
+                # Execute tools
+                tool_results = []
+                for tool_name, args, tool_call_id in tool_calls:
+                    if self.verbose:
+                        print(f"  Tool: {tool_name}({args})")
+
+                    result = self._execute_tool(tool_name, args)
+                    tool_results.append((tool_name, result, tool_call_id))
+
+                    if self.verbose and result.success:
+                        print(f"    ✓ Success")
+                    elif self.verbose:
+                        print(f"    ✗ Error: {result.error}")
+
+                # Add tool results to conversation (one message per call with tool_call_id)
+                self._append_tool_results(tool_results)
 
         # Extract findings from final conversation
         findings = self._extract_findings_from_conversation()

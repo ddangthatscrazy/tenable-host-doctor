@@ -44,25 +44,11 @@ def analyze_network(host_data: HostData, scan_config: ScanConfig) -> list[Findin
         findings.append(finding)
         return findings  # No point checking other network issues if unreachable
 
-    # Check for timeout patterns
-    if host_data.has_plugin(10114) or host_data.has_plugin(10180):
-        finding = Finding(
-            category=FindingCategory.NETWORK,
-            severity=Severity.MEDIUM,
-            title="Network Timeout Detected",
-            description="Network timeout or ICMP unreachable messages detected during scan.",
-            evidence=[
-                "Plugin 10114 or 10180 present",
-                "May indicate network latency or packet loss",
-            ],
-            remediation=[
-                "Check network path between scanner and target",
-                "Consider increasing network timeout in scan settings",
-                "Verify no rate limiting or QoS restrictions",
-            ],
-            plugin_ids=[10114, 10180],
-        )
-        findings.append(finding)
+    # NOTE: plugins 10114 ("ICMP Timestamp Request Remote Date Disclosure") and
+    # 10180 ("Ping the remote host") are RESPONSE indicators — their presence means
+    # the host answered discovery, not that it timed out. Non-response is signaled by
+    # their ABSENCE, which is already covered by the is_reachable check above. We do
+    # not emit a timeout finding from their presence (that was the previous bug).
 
     # Check for scan duration anomalies
     if host_data.scan_duration_seconds:
