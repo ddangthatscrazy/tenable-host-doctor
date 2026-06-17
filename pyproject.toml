@@ -47,10 +47,10 @@ api = [
 host-doctor = "host_doctor.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/tenable/host-doctor"
-Repository = "https://github.com/tenable/host-doctor"
-Documentation = "https://github.com/tenable/host-doctor/docs"
-Issues = "https://github.com/tenable/host-doctor/issues"
+Homepage = "https://github.com/ddangthatscrazy/tenable-host-doctor"
+Repository = "https://github.com/ddangthatscrazy/tenable-host-doctor"
+Documentation = "https://github.com/ddangthatscrazy/tenable-host-doctor/docs"
+Issues = "https://github.com/ddangthatscrazy/tenable-host-doctor/issues"
 
 [tool.setuptools]
 packages = ["host_doctor"]

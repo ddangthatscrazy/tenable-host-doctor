@@ -53,7 +53,7 @@ export TIO_SECRET_KEY="your-secret-key"
 Requires Python 3.9+.
 
 ```bash
-git clone https://github.com/tenable/host-doctor
+git clone https://github.com/ddangthatscrazy/tenable-host-doctor
 cd tenable-host-doctor
 
 # Create a virtual environment (recommended)
