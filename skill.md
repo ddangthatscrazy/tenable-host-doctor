@@ -24,11 +24,21 @@ Invoke this skill when a user says something like:
 
 ## What You Need from the User
 
-Before starting, confirm you have:
-1. **The .nessus file** — exported from Tenable UI or API. If they only have a scan ID, use the Tenable API to download it if available.
-2. **The host to analyze** — IP address or hostname.
+Before starting, confirm you have all three of the following:
 
-If the user hasn't provided the file, ask for it. If they have a scan ID but no file, offer to download it if Tenable API credentials are configured.
+1. **Tenable API credentials** — check whether `TIO_ACCESS_KEY` and `TIO_SECRET_KEY` are set in the environment. If they are not set, ask the user:
+   > "To fetch scans directly from Tenable and use the automatic debug loop, I need your Tenable API keys. You can find these in Tenable under **My Account → API Keys**. Run the following in your terminal, then restart this session:
+   > ```bash
+   > export TIO_ACCESS_KEY="your-access-key"
+   > export TIO_SECRET_KEY="your-secret-key"
+   > ```
+   > If you'd prefer to work without API access, you can export the scan manually from the Tenable UI (Export → Nessus) and share the `.nessus` file directly."
+
+2. **The scan to analyze** — a `.nessus` file, or a scan name/ID if API credentials are configured.
+
+3. **The host to analyze** — IP address or hostname. If unsure, offer to list all hosts in the scan file once you have it.
+
+Do not proceed past this check until you have at least items 2 and 3. Item 1 is strongly recommended but not required if the user provides a `.nessus` file manually.
 
 ---
 

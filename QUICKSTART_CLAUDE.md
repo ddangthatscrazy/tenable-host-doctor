@@ -48,16 +48,24 @@ cp skill.md ~/.claude/skills/host-doctor.md
 
 Restart Claude Code if it's already running. The skill will be available as `/host-doctor`.
 
-## Step 3 — (Optional) Enable API Access
+## Step 3 — Configure Tenable API Access
 
-To let Claude fetch scans directly from Tenable (no manual export needed):
+Install the API dependencies and set your Tenable credentials. This is required for Claude to fetch scans directly and use the automatic debug loop.
 
 ```bash
 pip install -e ".[api]"
+```
 
+Then set your API keys in your terminal (you can find these in Tenable under **My Account → API Keys**):
+
+```bash
 export TIO_ACCESS_KEY="your-access-key"
 export TIO_SECRET_KEY="your-secret-key"
 ```
+
+To persist these across sessions, add both lines to your `~/.zshrc` or `~/.bashrc`.
+
+> **Don't have API keys?** You can still use Host Doctor by exporting scans manually from the Tenable UI (Export → Nessus). Skip to Step 4, Option B. Note that `--auto-debug` will not be available.
 
 ## Step 4 — Get the scan data
 
