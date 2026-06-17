@@ -16,6 +16,16 @@ Single-host diagnostic tool for Tenable scans. Analyzes why a specific host fail
 
 **No API rate limits** - works entirely with local files (except optional scan creation).
 
+## Getting Started
+
+> **New here? Skip the manual steps below and use one of these instead:**
+>
+> 🤖 **[QUICKSTART_CLAUDE.md](QUICKSTART_CLAUDE.md)** — Using Claude (no LLM API key needed). Includes a one-step prompt you can paste directly into Claude to install and configure everything automatically.
+>
+> ⚡ **[QUICKSTART.md](QUICKSTART.md)** — Using your own LLM via LiteLLM (OpenAI, Anthropic, Ollama, etc.). Includes a one-step prompt for automated setup.
+
+---
+
 ## Key Differences from Scan Doctor
 
 | Feature | Scan Doctor | Host Doctor |
