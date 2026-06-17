@@ -1,0 +1,89 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Logs
+*.log
+
+# Scan data (don't commit real scan files)
+*.nessus
+*.kb
+*.db
+results.db
+
+# Reports
+*_report.html
+*_report.md
+*_report.json
+
+# Development/test output files at root (should stay in tests/ or be gitignored)
+analysis_output.txt
+deterministic_findings.json
+report_data.json
+test_report.json
+test_report.md
+scan_45_full_details.json
+ssh_commands_ubuntunessus.json
+
+# Ad-hoc test scripts at root (keep tests in tests/)
+test_*.py
+demo_*.py
+
+# Development notes and implementation summaries
+IMPLEMENTATION_SUMMARY.md
+IMPLEMENTATION_TEST_RESULTS.md
+IMPROVEMENT_RECOMMENDATIONS.md
+PHASE1_COMPLETE.md
+REPORT_UPGRADE_SUMMARY.md
+SCAN_AUTOFETCH_SUMMARY.md
+DEMO_COMPLETE_EXAMPLE.md
+WHY_MERGE_REPORTHOST_ENTRIES.md
+
+# Environment
+.env
+.env.local
