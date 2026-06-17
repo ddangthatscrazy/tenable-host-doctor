@@ -158,6 +158,10 @@ class Finding:
     plugin_ids: list[int] = field(default_factory=list)
     config_issues: dict[str, Any] = field(default_factory=dict)
 
+    # Classifier confidence: 1.0 = authoritative plugin evidence, lower = inferred.
+    # Drives "likely vs confirmed" wording and the diagnostic-rerun recommendation.
+    confidence: float = 1.0
+
     # LLM enhancement (optional)
     llm_narrative: Optional[str] = None  # Root cause explanation from LLM analysis
 

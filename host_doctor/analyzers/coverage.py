@@ -53,10 +53,12 @@ class PluginCoverageBaseline:
 def analyze_plugin_coverage(host_data: HostData, scan_config: ScanConfig) -> list[Finding]:
     """Compare actual plugin coverage against baseline expectations.
 
-    Detects:
-    - Insufficient total plugin count for OS type
-    - Missing critical plugin families
-    - Coverage percentage vs expected baseline
+    Coverage findings are gated on the authoritative "did local checks run?"
+    signal from the credential-state classifier. Raw plugin counts are brittle
+    (a minimal RHEL box and a Windows box running SQL+IIS have wildly different
+    legitimate counts), so when the classifier confirms credentialed assessment
+    succeeded we do NOT raise count-based coverage findings — they would be false
+    positives. Counts only matter when local checks did not run.
 
     Args:
         host_data: Host scan results
@@ -65,7 +67,18 @@ def analyze_plugin_coverage(host_data: HostData, scan_config: ScanConfig) -> lis
     Returns:
         List of coverage-related findings
     """
+    from host_doctor.analyzers.credential_state import (
+        RootCause,
+        classify_credential_state,
+    )
+
     findings = []
+
+    # Authoritative gate: if credentialed local checks actually ran, the host is
+    # covered regardless of absolute plugin count. Skip the count baselines.
+    state = classify_credential_state(host_data)
+    if state.root_cause == RootCause.SUCCESS:
+        return findings
 
     # Use vulnerabilities (all report items) not plugins dict (filtered subset)
     actual_count = len(host_data.vulnerabilities)
@@ -128,8 +141,8 @@ def check_linux_coverage(
 
         return Finding(
             category=FindingCategory.CONFIGURATION,
-            severity=Severity.CRITICAL,
-            title="Insufficient Plugin Coverage for Linux Host",
+            severity=Severity.HIGH,  # corroborating; auth analyzer owns CRITICAL
+            title="Low Plugin Coverage for Linux Host",
             description=(
                 f"Host has only {actual_count} plugins (expected {expected_min}-{expected_max} "
                 f"for credentialed Linux). OS-specific checks: {os_family_count} (expected {expected_os_family}+). "
@@ -144,7 +157,7 @@ def check_linux_coverage(
                 f"OS detected: {host_data.operating_system or 'Unknown'}",
             ],
             remediation=[
-                "This indicates authentication likely failed or credentials are insufficient",
+                "See the Authentication finding for the confirmed root cause (this is a corroborating coverage signal).",
                 "Check SSH credentials and connectivity (look for plugin 97993 success)",
                 "Verify all plugin families are enabled in scan policy",
                 "Ensure user has sufficient privileges (root or sudo)",
@@ -184,8 +197,8 @@ def check_windows_coverage(
 
         return Finding(
             category=FindingCategory.CONFIGURATION,
-            severity=Severity.CRITICAL,
-            title="Insufficient Plugin Coverage for Windows Host",
+            severity=Severity.HIGH,  # corroborating; auth analyzer owns CRITICAL
+            title="Low Plugin Coverage for Windows Host",
             description=(
                 f"Host has only {actual_count} plugins (expected {expected_min}-{expected_max} "
                 f"for credentialed Windows). Windows family: {windows_plugin_count} (expected {windows_family_min}+). "
@@ -200,7 +213,7 @@ def check_windows_coverage(
                 f"OS detected: {host_data.operating_system or 'Unknown'}",
             ],
             remediation=[
-                "This indicates authentication likely failed or credentials are insufficient",
+                "See the Authentication finding for the confirmed root cause (this is a corroborating coverage signal).",
                 "Check SMB credentials and connectivity (look for plugin 10394 success)",
                 "Verify Windows plugin families are enabled in scan policy",
                 "Ensure account has Administrator privileges",

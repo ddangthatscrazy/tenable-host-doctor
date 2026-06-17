@@ -16,17 +16,35 @@ from host_doctor.models import (
 )
 
 
-# Diagnostic plugins we always want to extract
+# Diagnostic plugins we always want to extract.
+# Labels verified against the Tenable plugin database (developer.tenable.com /
+# tenable.com/plugins). Several previous labels were wrong and drove incorrect
+# diagnoses; see credential_state.py for how these are used.
 DIAGNOSTIC_PLUGINS = {
     19506: "Nessus Scan Information",
     84239: "Authentication Failure - Debugging Log",
-    104410: "Credential Authentication Failure",
-    110095: "No Credential Issues",
+    # --- Target Credential Status by Authentication Protocol (per-protocol auth) ---
+    104410: "Target Credential Status by Authentication Protocol - Failure for Provided Credentials",
+    110723: "Target Credential Status by Authentication Protocol - No Credentials Provided",
+    141118: "Target Credential Status by Authentication Protocol - Valid Credentials Provided",
+    # --- Target Credential Issues by Authentication Protocol (post-auth quality) ---
+    110095: "Target Credential Issues by Authentication Protocol - No Issues Found",
+    110385: "Target Credential Issues by Authentication Protocol - Insufficient Privilege",
+    117885: "Target Credential Issues by Authentication Protocol - Intermittent Authentication Failure",
+    # --- OS Security Patch Assessment (did local checks actually run?) ---
+    117887: "OS Security Patch Assessment Available",          # authoritative success
+    117886: "OS Security Patch Assessment Not Available",       # informational, not a failure
+    110695: "OS Security Patch Assessment Checks Not Supported",  # OS unsupported for local checks
+    21745: "Authentication Failure - Local Checks Not Run",     # umbrella: auth is only ONE cause
+    # --- Privilege / registry (Windows + SSH escalation) ---
+    102094: "SSH Commands Require Privilege Escalation",        # was mislabeled as SMB login success
+    24786: "Nessus Windows Scan Not Performed with Admin Privileges",
+    26917: "Microsoft Windows SMB Registry: Nessus Cannot Access the Windows Registry",
+    35705: "SMB Registry: Starting the Registry Service during the scan failed",
+    35706: "SMB Registry: Stopping the Registry Service after the scan failed",
+    122501: "SSH Rate Limited Device",
+    # --- Diagnostics / connectivity ---
     117530: "Errors in nessusd.dump",
-    141118: "Target Credential Status - Valid Credentials",
-    102094: "Microsoft Windows SMB Login Successful",
-    21643: "Patch Assessment Available",
-    21745: "Patch Assessment Failed",
     10114: "ICMP Timestamp Request Remote Date Disclosure",
     10180: "Ping the remote host",
 }

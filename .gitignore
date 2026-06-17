@@ -71,7 +71,7 @@ scan_45_full_details.json
 ssh_commands_ubuntunessus.json
 
 # Ad-hoc test scripts at root (keep tests in tests/)
-test_*.py
+/test_*.py
 demo_*.py
 
 # Development notes and implementation summaries

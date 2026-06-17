@@ -7,13 +7,23 @@ not just the primary indicators. This reduces false negatives.
 from host_doctor.models import HostData
 
 
-# Plugin IDs that indicate successful authentication
+# Plugin IDs that indicate successful authentication.
+# NOTE: 102094 ("SSH Commands Require Privilege Escalation") was previously listed
+# here as "SMB Login Successful" — that is incorrect. 102094 indicates auth
+# succeeded but with INSUFFICIENT privilege, so it is handled as a privilege issue
+# in credential_state.py, not as a success signal.
 WINDOWS_AUTH_SUCCESS_PLUGINS = {
-    102094: "Microsoft Windows SMB Login Successful",
     10394: "Microsoft Windows SMB Log In Possible",
     10396: "Microsoft Windows SMB Shares Access",
-    26917: "Microsoft Windows SMB Registry : Microsoft Windows SMB Registry Access",
+    26917: "Microsoft Windows SMB Registry : Registry access attempted",
     20811: "Microsoft Windows Installed Software Enumeration (credentialed check)",
+}
+
+# Authoritative success signals that apply across protocols.
+AUTHORITATIVE_SUCCESS_PLUGINS = {
+    117887: "OS Security Patch Assessment Available",
+    110095: "Target Credential Issues by Authentication Protocol - No Issues Found",
+    141118: "Target Credential Status by Authentication Protocol - Valid Credentials Provided",
 }
 
 SSH_AUTH_SUCCESS_PLUGINS = {
@@ -168,7 +178,14 @@ def check_any_auth_success(host_data: HostData) -> dict:
     ssh = check_ssh_auth_success(host_data)
     vmware = check_vmware_auth_success(host_data)
 
-    any_success = windows["success"] or ssh["success"] or vmware["success"]
+    # Authoritative cross-protocol success signals (117887 / 110095 / 141118).
+    authoritative = any(
+        host_data.has_plugin(pid) for pid in AUTHORITATIVE_SUCCESS_PLUGINS
+    )
+
+    any_success = (
+        windows["success"] or ssh["success"] or vmware["success"] or authoritative
+    )
 
     return {
         "windows": windows,
