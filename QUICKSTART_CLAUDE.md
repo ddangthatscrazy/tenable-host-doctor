@@ -5,7 +5,7 @@ This guide is for users running Host Doctor alongside Claude (no LLM API key req
 ## Requirements
 
 - Python 3.9+
-- Claude desktop app with the `host-doctor` skill installed
+- Claude desktop app (Cowork) **or** Claude Code CLI
 - A Tenable scan to analyze (file export or API credentials to auto-fetch)
 
 ## Step 1 — Install Host Doctor
@@ -22,23 +22,31 @@ pip install -e .
 
 ## Step 2 — Install the Claude Skill
 
-The Host Doctor skill enables Claude to run the diagnostic analysis directly. To install it:
+The Host Doctor skill enables Claude to run the diagnostic analysis directly. Choose the instructions for your Claude environment.
 
-1. Copy or symlink the `skill.md` file to your Claude skills directory:
-   ```bash
-   # Create skills directory if it doesn't exist
-   mkdir -p ~/.claude/skills
-   
-   # Symlink the skill (recommended - picks up updates automatically)
-   ln -s "$(pwd)/skill.md" ~/.claude/skills/host-doctor.md
-   
-   # Or copy it
-   cp skill.md ~/.claude/skills/host-doctor.md
-   ```
+### Claude Desktop (Cowork)
 
-2. Restart Claude if it's already running
+1. Open the Claude desktop app
+2. Go to **Settings → Capabilities → Skills**
+3. Click **Add Skill** and select the `skill.md` file from the cloned repo
+4. Restart Claude if prompted
 
-The skill will now be available as `/host-doctor` in your Claude conversations.
+The skill will appear as `host-doctor` in your Claude conversations.
+
+### Claude Code (CLI)
+
+```bash
+# Install globally (available in all projects)
+mkdir -p ~/.claude/skills
+
+# Symlink (recommended — picks up updates automatically)
+ln -s "$(pwd)/skill.md" ~/.claude/skills/host-doctor.md
+
+# Or copy it
+cp skill.md ~/.claude/skills/host-doctor.md
+```
+
+Restart Claude Code if it's already running. The skill will be available as `/host-doctor`.
 
 ## Step 3 — (Optional) Enable API Access
 
