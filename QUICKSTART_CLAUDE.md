@@ -1,5 +1,25 @@
 # Quick Start — Using Host Doctor with Claude
 
+## One-Step Installation Prompt
+
+Copy and paste the following prompt into Claude to have it install and validate Host Doctor automatically:
+
+```
+Please install the Tenable Host Doctor tool from https://github.com/ddangthatscrazy/tenable-host-doctor and set it up for use with the Claude skill. Here's what I need you to do:
+
+1. Clone the repo and create a Python virtual environment
+2. Install the package with API dependencies: pip install -e ".[api]"
+3. Ask me for my Tenable API keys (TIO_ACCESS_KEY and TIO_SECRET_KEY) — I'll provide them and you should set them in the environment and write them to a .env file in the project directory so they persist
+4. Install the skill by symlinking skill.md to ~/.claude/skills/host-doctor.md (Claude Code) or walk me through adding it via Settings → Capabilities → Skills (Claude Desktop)
+5. Validate the installation by running: host-doctor --help
+6. Validate the API connection by attempting to list my scans using the Tenable API
+7. Confirm everything is working and tell me exactly how to invoke the skill
+
+Do not skip the API key setup — prompt me for them even if I haven't mentioned them yet. If I don't have API keys, explain how to find them in Tenable under My Account → API Keys, and offer the manual .nessus export path as a fallback.
+```
+
+---
+
 This guide is for users running Host Doctor alongside Claude (no LLM API key required). Claude acts as the AI layer — running the diagnostic analysis, interpreting the findings, connecting the dots, and giving you plain-language recommendations.
 
 ## Requirements

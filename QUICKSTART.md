@@ -1,5 +1,27 @@
 # Quick Start Guide
 
+## One-Step Installation Prompt
+
+Copy and paste the following prompt into Claude Code (or any LLM with terminal access) to have it install and validate Host Doctor automatically:
+
+```
+Please install the Tenable Host Doctor tool from https://github.com/ddangthatscrazy/tenable-host-doctor and set it up for CLI use with an LLM backend. Here's what I need you to do:
+
+1. Clone the repo and create a Python virtual environment
+2. Install the package with API dependencies: pip install -e ".[api]"
+3. Ask me for my Tenable API keys (TIO_ACCESS_KEY and TIO_SECRET_KEY) — I'll provide them and you should set them in the environment and write them to a .env file in the project directory so they persist
+4. Ask me which LLM I want to use (Anthropic Claude, OpenAI, or a local Ollama model) and prompt me for the relevant API key, then write the correct SCAN_DOCTOR_MODEL and API key to the .env file
+5. Validate the installation by running: host-doctor --help
+6. Validate the API connection by attempting to list my scans using the Tenable API
+7. Validate the LLM connection by running a quick test call to confirm the model is reachable
+8. Run a test analysis in deterministic mode (no LLM) to confirm the analyzer pipeline works: if I have a .nessus file available ask me for it, otherwise confirm deterministic mode works by running the CLI with --help and checking all subcommands are present
+9. Confirm everything is working and show me the basic usage commands
+
+Do not skip the API key setup steps — prompt me for each key even if I haven't mentioned them. If I don't have Tenable API keys, explain how to find them under My Account → API Keys in Tenable.io, and offer the manual .nessus export path as a fallback. If I don't want an LLM backend, confirm that deterministic mode will still run and produce findings without one.
+```
+
+---
+
 ## Requirements
 
 - Python 3.9+
