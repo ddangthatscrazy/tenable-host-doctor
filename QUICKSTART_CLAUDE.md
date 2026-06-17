@@ -1,6 +1,6 @@
 # Quick Start — Using Host Doctor with Claude
 
-This guide is for users running Host Doctor alongside Claude (no LLM API key required). Claude acts as the AI layer — interpreting the deterministic findings, connecting the dots, and giving you plain-language recommendations.
+This guide is for users running Host Doctor alongside Claude (no LLM API key required). Claude acts as the AI layer — running the diagnostic analysis, interpreting the findings, connecting the dots, and giving you plain-language recommendations.
 
 ## Requirements
 
@@ -22,7 +22,7 @@ pip install -e .
 
 ## Step 2 — Install the Claude Skill
 
-The Host Doctor skill enables Claude to interpret scan diagnostics. To install it:
+The Host Doctor skill enables Claude to run the diagnostic analysis directly. To install it:
 
 1. Copy or symlink the `skill.md` file to your Claude skills directory:
    ```bash
@@ -40,7 +40,9 @@ The Host Doctor skill enables Claude to interpret scan diagnostics. To install i
 
 The skill will now be available as `/host-doctor` in your Claude conversations.
 
-To let Host Doctor fetch scans directly from Tenable (no manual export needed):
+## Step 3 — (Optional) Enable API Access
+
+To let Claude fetch scans directly from Tenable (no manual export needed):
 
 ```bash
 pip install -e ".[api]"
@@ -49,57 +51,58 @@ export TIO_ACCESS_KEY="your-access-key"
 export TIO_SECRET_KEY="your-secret-key"
 ```
 
-## Step 3 — Get the scan data
+## Step 4 — Get the scan data
 
-**Option A: Auto-fetch by scan name or ID (easiest)**
-```bash
-host-doctor analyze --scan-name "Production Scan" --host 192.168.1.100
-```
-
-**Option B: Export manually from Tenable UI**
+**Option A: Export manually from Tenable UI**
 1. Open your scan in Tenable.io
 2. Click **Export** → **Nessus**
-3. Download the `.nessus` file, then:
+3. Download the `.nessus` file
 
-```bash
-host-doctor analyze scan.nessus --host 192.168.1.100
-```
+**Option B: Let Claude fetch it (requires API credentials from Step 3)**
+- Claude can download the scan using the Tenable API when you provide a scan name or ID
 
-> **Tip:** The host identifier must match exactly how it appears in the scan — usually the IP address. If you get a "host not found" error, the tool will list all available hosts.
+> **Tip:** The host identifier must match exactly how it appears in the scan — usually the IP address.
 
-## Step 4 — Run the analysis
+## Step 5 — Run the analysis in Claude
 
-Host Doctor generates a JSON report that Claude can read and interpret:
+In the Claude desktop app, start a conversation and invoke the Host Doctor skill. Provide the scan file and the host you want to analyze:
 
-```bash
-host-doctor analyze --scan-name "Production Scan" --host 192.168.1.100 \
-  --format json --output report.json
-```
+> `/host-doctor analyze host 192.168.1.100 from my-scan.nessus`
 
-## Step 5 — Open Claude and invoke the skill
+Or if you uploaded the scan file:
 
-In the Claude desktop app, start a conversation and invoke the Host Doctor skill. Then share the `report.json` file and ask Claude to analyze it:
+> `/host-doctor` (then describe) "Analyze host 192.168.1.100 from the scan file I just shared"
 
-> "Analyze this Host Doctor report and tell me why this host isn't scanning correctly."
+### What Claude Does
 
-Claude will read the deterministic findings and give you:
+When you invoke the skill, Claude will:
+1. Parse the `.nessus` file
+2. Run all diagnostic analyzers (authentication, network, policy, coverage)
+3. Interpret the findings and connect the dots
+4. Give you a plain-language explanation with prioritized recommendations
+5. Generate a detailed report if requested
+
+You'll get:
 - A plain-language explanation of what's wrong
 - Prioritized recommendations for what to fix first
 - Specific remediation steps tailored to your environment
+- Connections between findings (e.g., "auth succeeded but UAC is blocking registry access")
 
 ## Step 6 — If debug data is missing
 
 If Claude tells you that plugin debugging wasn't enabled in the scan, you have two options:
 
-**With Tenable API credentials**, Host Doctor can handle it automatically:
-```bash
-host-doctor analyze --scan-name "Production Scan" --host 192.168.1.100 \
-  --scan-id 12345 --auto-debug --format json --output report_debug.json
-```
+**Option 1: Continue with available data**
+The analysis will still identify most issues, but won't have detailed error messages or SSH command traces.
 
-This will enable plugin debugging on the scan, re-run it against just that host, download the results, and re-analyze — all in one step. Bring the new `report_debug.json` back to Claude for a deeper analysis.
+**Option 2: Enable debugging and re-scan**
+Claude will walk you through:
+1. Enabling "Plugin debugging" in your Tenable scan policy
+2. Re-running the scan (ideally targeting just that one host)
+3. Exporting the new `.nessus` file
+4. Bringing it back for a deeper analysis
 
-**Without API credentials**, Claude will walk you through enabling debugging manually in the Tenable UI, then you re-export and re-run the analysis.
+If you have API credentials configured, Claude can update the scan policy and trigger the re-scan automatically.
 
 ## Common Questions
 
@@ -107,22 +110,47 @@ This will enable plugin debugging on the scan, re-run it against just that host,
 No. The skill runs inside the Claude desktop app using your existing Claude account.
 
 **What if I don't have Tenable API credentials?**
-Export the `.nessus` file manually from the Tenable UI (Export → Nessus) and use that as input. The `--auto-debug` feature requires API credentials, but all other analysis works without them.
+Export the `.nessus` file manually from the Tenable UI (Export → Nessus) and share it with Claude. All analysis features work without API credentials — you just can't auto-fetch scans or auto-enable debugging.
+
+**Do I need to run the host-doctor CLI command myself?**
+No! That's the whole point of the Claude skill. Just invoke `/host-doctor` in Claude and describe what you want. Claude will run the analysis for you.
+
+**Can Claude generate a report file?**
+Yes. After the analysis, you can ask Claude to "generate an HTML report" or "save this as a JSON file" and it will create the report file for you.
 
 **How do I know what host identifier to use?**
-Run this to list all hosts in a scan file:
-```bash
-python3 -c "
-from pathlib import Path
-from host_doctor.parsers.nessus import parse_nessus_file
-scan = parse_nessus_file(Path('scan.nessus'))
-for h in scan['hosts']:
-    print(f'{h.host_ip}  {h.hostname or \"\"}')
-"
+If you're not sure, just provide the scan file to Claude and ask "what hosts are in this scan?" Claude will list them for you.
+
+## Example Conversation Flow
+
+```
+You: /host-doctor analyze host 192.168.1.100 from prod-scan.nessus
+
+Claude: [Parses scan, runs analyzers]
+
+I found 3 key issues preventing credentialed scanning on 192.168.1.100:
+
+1. **Authentication Failed** - SSH credentials were rejected
+   - Plugin 104410 shows: "Permission denied (publickey,password)"
+   - The username 'scanner' is configured but authentication failed
+
+2. **Missing Critical Plugin Families**
+   - 0 local security check plugins ran (expected ~2000 for Ubuntu)
+   - This confirms the authentication failure blocked all local checks
+
+3. **Port 22 is open but timing out after auth attempt**
+   - Suggests the SSH service may be rate-limiting or blocking after failed auth
+
+**Recommended fix:** 
+1. Verify the SSH credentials are correct for this host
+2. Check if the 'scanner' user exists and has the right password/key
+3. Review /var/log/auth.log on the host for specific SSH rejection reasons
+
+Would you like me to generate a detailed HTML report?
 ```
 
 ## Further Reading
 
 - `README.md` — full documentation and architecture
 - `QUICKSTART.md` — CLI-first quickstart for users with their own LLM API key
-- `skill.md` — the skill definition Claude uses to interpret Host Doctor output
+- `skill.md` — the skill definition Claude uses to run the analysis
