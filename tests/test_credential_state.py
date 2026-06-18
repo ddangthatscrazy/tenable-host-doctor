@@ -74,7 +74,7 @@ def test_102094_is_insufficient_privilege_not_success():
         (21745, "Local Checks Not Run"),
     ])
     state = classify_credential_state(host)
-    assert RootCause.INSUFFICIENT_PRIVILEGE in state.additive
+    assert RootCause.INSUFFICIENT_PRIVILEGE in [i.cause for i in state.additive]
     assert state.root_cause != RootCause.SUCCESS
 
 
@@ -131,7 +131,7 @@ def test_success_with_registry_additive():
     ], os="Windows Server 2019")
     state = classify_credential_state(host)
     assert state.root_cause == RootCause.SUCCESS
-    assert RootCause.REGISTRY_INACCESSIBLE in state.additive
+    assert RootCause.REGISTRY_INACCESSIBLE in [i.cause for i in state.additive]
 
 
 # --- Analyzer wiring: severities + no double-critical with coverage -----------

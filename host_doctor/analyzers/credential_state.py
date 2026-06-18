@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum
 
-from host_doctor.models import HostData
+from host_doctor.models import HostData, Severity
 
 # --- Plugin IDs (labels verified against the Tenable plugin database) ----------
 P_SCAN_INFO = 19506          # Nessus Scan Information
@@ -41,6 +41,8 @@ P_WIN_NOT_ADMIN = 24786      # Nessus Windows Scan Not Performed with Admin Priv
 P_WIN_REGISTRY = 26917       # Nessus Cannot Access the Windows Registry
 P_WIN_REG_START = 35705      # SMB Registry: Starting the Registry Service failed
 P_WIN_REG_STOP = 35706       # SMB Registry: Stopping the Registry Service failed
+P_DB_AUTH_FAIL = 91822       # Database Authentication Failure(s) for Provided Credentials
+P_INTEGRATION_FAIL = 122503  # Integration Credential Status - Failure for Provided Credentials
 P_SSH_RATE_LIMIT = 122501    # SSH Rate Limited Device
 # Discovery-RESPONSE plugins: their PRESENCE proves the host answered discovery.
 # (Non-response is signaled by their absence, never by their presence.)
@@ -75,6 +77,8 @@ class RootCause(str, Enum):
     SUCCESS = "success"                              # 117887 / patch families present
     INSUFFICIENT_PRIVILEGE = "insufficient_privilege"  # authenticated, under-privileged
     REGISTRY_INACCESSIBLE = "registry_inaccessible"  # Windows registry blocked
+    DATABASE_AUTH_FAILURE = "database_auth_failure"   # additive: DB creds failed (91822)
+    INTEGRATION_AUTH_FAILURE = "integration_auth_failure"  # additive: integration creds failed (122503)
     NO_CREDENTIALS_PROVIDED = "no_credentials_provided"  # 110723 — config gap
     CREDENTIAL_FAILURE = "credential_failure"        # 104410 — creds wrong
     INTERMITTENT_AUTH = "intermittent_auth"          # 117885 — lockout / rate-limit
@@ -86,13 +90,26 @@ class RootCause(str, Enum):
 
 
 @dataclass
+class AdditiveIssue:
+    """A secondary issue that coexists with the primary verdict, carrying its own
+    evidence so it renders fully (not stripped). `severity=None` means render with
+    the cause's default severity; `protocol` annotates the affected layer."""
+
+    cause: RootCause
+    evidence: list[str] = field(default_factory=list)
+    plugin_ids: list[int] = field(default_factory=list)
+    severity: Severity | None = None
+    protocol: str = ""
+
+
+@dataclass
 class CredentialState:
     """Result of classification. `additive` causes coexist with the primary verdict."""
 
     root_cause: RootCause
     protocol: str = ""                          # "ssh" | "smb" | ""
     evidence: list[str] = field(default_factory=list)
-    additive: list[RootCause] = field(default_factory=list)
+    additive: list[AdditiveIssue] = field(default_factory=list)
     confidence: float = 1.0                     # 1.0 authoritative, lower = inferred
     plugin_ids: list[int] = field(default_factory=list)
 
@@ -123,33 +140,60 @@ def _has_patch_families(host_data: HostData) -> bool:
     return False
 
 
-def _collect_additive(host_data: HostData) -> tuple[list[RootCause], list[str], list[int]]:
-    """Privilege/registry issues that can coexist with any primary verdict."""
+def _collect_additive(host_data: HostData) -> list[AdditiveIssue]:
+    """Issues that can coexist with any primary verdict, each carrying its own
+    evidence/plugin_ids so it renders fully. These never alter the primary
+    verdict — e.g. a host can pass OS auth (SUCCESS) yet fail database auth."""
     has = host_data.has_plugin
-    causes: list[RootCause] = []
-    evidence: list[str] = []
-    pids: list[int] = []
+    issues: list[AdditiveIssue] = []
 
+    # Privilege (authenticated but under-privileged).
     if has(P_WIN_NOT_ADMIN) or has(P_PRIV_INSUFFICIENT) or has(P_SSH_PRIV_ESCALATION):
-        causes.append(RootCause.INSUFFICIENT_PRIVILEGE)
+        ev: list[str] = []
+        pids: list[int] = []
         if has(P_WIN_NOT_ADMIN):
-            evidence.append(f"Plugin {P_WIN_NOT_ADMIN}: Windows account lacks administrator privileges.")
+            ev.append(f"Plugin {P_WIN_NOT_ADMIN}: Windows account lacks administrator privileges.")
             pids.append(P_WIN_NOT_ADMIN)
         if has(P_PRIV_INSUFFICIENT):
-            evidence.append(f"Plugin {P_PRIV_INSUFFICIENT}: authenticated but insufficient privilege for some checks.")
+            ev.append(f"Plugin {P_PRIV_INSUFFICIENT}: authenticated but insufficient privilege for some checks.")
             pids.append(P_PRIV_INSUFFICIENT)
         if has(P_SSH_PRIV_ESCALATION):
-            evidence.append(f"Plugin {P_SSH_PRIV_ESCALATION}: SSH commands failed needing privilege escalation (sudo/su).")
+            ev.append(f"Plugin {P_SSH_PRIV_ESCALATION}: SSH commands failed needing privilege escalation (sudo/su).")
             pids.append(P_SSH_PRIV_ESCALATION)
+        issues.append(AdditiveIssue(RootCause.INSUFFICIENT_PRIVILEGE, evidence=ev, plugin_ids=pids))
 
+    # Registry (Windows registry not fully accessible).
     if any(has(p) for p in (P_WIN_REGISTRY, P_WIN_REG_START, P_WIN_REG_STOP)):
-        causes.append(RootCause.REGISTRY_INACCESSIBLE)
-        for p in (P_WIN_REGISTRY, P_WIN_REG_START, P_WIN_REG_STOP):
-            if has(p):
-                pids.append(p)
-        evidence.append("Windows registry not fully accessible (Remote Registry service / UAC token filtering / GPO).")
+        pids = [p for p in (P_WIN_REGISTRY, P_WIN_REG_START, P_WIN_REG_STOP) if has(p)]
+        issues.append(AdditiveIssue(
+            RootCause.REGISTRY_INACCESSIBLE,
+            evidence=["Windows registry not fully accessible (Remote Registry service / UAC token filtering / GPO)."],
+            plugin_ids=pids,
+        ))
 
-    return causes, evidence, pids
+    # Database credential failure (separate from host SSH/SMB auth — can coexist
+    # with a host SUCCESS verdict and must never be masked by it).
+    if has(P_DB_AUTH_FAIL):
+        issues.append(AdditiveIssue(
+            RootCause.DATABASE_AUTH_FAILURE,
+            evidence=[f"Plugin {P_DB_AUTH_FAIL}: database authentication failed for the provided database credentials."],
+            plugin_ids=[P_DB_AUTH_FAIL],
+            severity=Severity.HIGH,
+            protocol="database",
+        ))
+
+    # Integration credential failure (patch-management / connector creds — distinct
+    # from host credentials; failure here does not block host assessment).
+    if has(P_INTEGRATION_FAIL):
+        issues.append(AdditiveIssue(
+            RootCause.INTEGRATION_AUTH_FAILURE,
+            evidence=[f"Plugin {P_INTEGRATION_FAIL}: integration authentication failed for the provided integration credentials."],
+            plugin_ids=[P_INTEGRATION_FAIL],
+            severity=Severity.MEDIUM,
+            protocol="integration",
+        ))
+
+    return issues
 
 
 def classify_credential_state(host_data: HostData, scan_config=None) -> CredentialState:
@@ -164,12 +208,12 @@ def classify_credential_state(host_data: HostData, scan_config=None) -> Credenti
     has = host_data.has_plugin
     out = lambda pid: host_data.get_plugin_output(pid) or ""  # noqa: E731
 
-    additive, add_evidence, add_pids = _collect_additive(host_data)
+    additive = _collect_additive(host_data)
 
     # --- Agent scans: short-circuit to agent-specific logic ---
     sensor_type = getattr(scan_config, "sensor_type", None) if scan_config else None
     if sensor_type == "agent":
-        return _classify_agent(host_data, additive, add_evidence, add_pids)
+        return _classify_agent(host_data, additive)
 
     # --- Gate: did the host respond at all? ---
     # A host that produced discovery-response plugins, assessment plugins, or any
@@ -195,8 +239,6 @@ def classify_credential_state(host_data: HostData, scan_config=None) -> Credenti
             ev.append("OS patch-assessment families present: credentialed local checks ran.")
         state = CredentialState(RootCause.SUCCESS, evidence=ev, plugin_ids=[P_LC_AVAILABLE] if has(P_LC_AVAILABLE) else [])
         state.additive = additive
-        state.evidence += add_evidence
-        state.plugin_ids += add_pids
         return state
 
     # --- Local checks did NOT run -> find out why, in strict precedence order ---
@@ -271,14 +313,12 @@ def classify_credential_state(host_data: HostData, scan_config=None) -> Credenti
             ],
         )
 
-    # Attach additive privilege/registry findings to whatever primary verdict we reached.
+    # Attach additive issues (they carry their own evidence) to the primary verdict.
     s.additive = additive
-    s.evidence += add_evidence
-    s.plugin_ids += add_pids
     return s
 
 
-def _classify_agent(host_data, additive, add_evidence, add_pids) -> CredentialState:
+def _classify_agent(host_data, additive) -> CredentialState:
     """Agent-specific classification.
 
     Agents are installed on the asset and already have the access needed for
@@ -318,6 +358,4 @@ def _classify_agent(host_data, additive, add_evidence, add_pids) -> CredentialSt
         )
 
     s.additive = additive
-    s.evidence += add_evidence
-    s.plugin_ids += add_pids
     return s

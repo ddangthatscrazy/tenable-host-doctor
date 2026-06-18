@@ -24,6 +24,8 @@ DIAGNOSTIC_PLUGINS = {
     19506: "Nessus Scan Information",
     84239: "Authentication Failure - Debugging Log",
     112154: "Enumerate Launched Plugins",
+    91822: "Database Authentication Failure",
+    122503: "Integration Credential Status - Failure",
     # --- Target Credential Status by Authentication Protocol (per-protocol auth) ---
     104410: "Target Credential Status by Authentication Protocol - Failure for Provided Credentials",
     110723: "Target Credential Status by Authentication Protocol - No Credentials Provided",
