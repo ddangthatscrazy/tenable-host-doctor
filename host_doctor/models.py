@@ -121,6 +121,25 @@ class ScanConfig:
     max_checks_per_host: Optional[int] = None
     network_timeout: Optional[int] = None
 
+    # Scan-engine performance settings (from policy ServerPreferences). Parsed
+    # separately from max_checks so the "max simultaneous *" settings never conflate.
+    max_hosts_per_scan: Optional[int] = None
+    max_tcp_sessions_per_host: Optional[int] = None
+    max_tcp_sessions_per_scan: Optional[int] = None
+    slow_down_on_congestion: Optional[bool] = None
+    stop_when_unresponsive: Optional[bool] = None
+
+    # Scanner placement / discovery context (19506 + policy preferences). These
+    # populate downstream discovery/route analyzers; any that don't parse stay
+    # None and simply produce no finding (fail-safe, never a false positive).
+    scanner_ip: Optional[str] = None
+    scanner_type: Optional[str] = None  # cloud | local | linked | unknown (only when determinable)
+    host_discovery_methods: list[str] = field(default_factory=list)
+    tcp_ping_ports: list[int] = field(default_factory=list)
+    udp_ping_ports: list[int] = field(default_factory=list)
+    scan_unresponsive_hosts: Optional[bool] = None
+    ssh_disclaimer_auto_accept: Optional[bool] = None
+
     # Enhanced config data (from plugin 19506)
     ping_rtt_ms: Optional[float] = None  # Network latency
     port_scanner_type: Optional[str] = None  # e.g., "wmi_netstat", "syn"

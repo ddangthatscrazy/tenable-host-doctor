@@ -201,6 +201,9 @@ def parse_nessus_file(file_path: Path) -> dict[str, any]:
     # Extract scan configuration from plugin 19506 (if present)
     scan_config = _extract_scan_config(hosts, scan_name, policy_name, scan_start, scan_end)
 
+    # Augment with policy ServerPreferences (engine/discovery settings not in 19506).
+    _extract_policy_preferences(root, scan_config)
+
     return {
         "hosts": hosts,
         "scan_config": scan_config,
@@ -225,6 +228,68 @@ def _extract_targets(root: ET.Element) -> list[str]:
             if value is not None and value.text:
                 return [t.strip() for t in value.text.split(",")]
     return []
+
+
+def _extract_policy_preferences(root: ET.Element, scan_config: "ScanConfig") -> None:
+    """Populate scan-engine and discovery settings from policy ServerPreferences.
+
+    Engine key names (max_hosts / max_checks / max_simult_tcp_sessions /
+    host.max_simult_tcp_sessions / reduce_connections_on_congestion /
+    stop_scan_on_disconnect) are from Tenable's Scan Engine Settings documentation.
+    Discovery/ping key names are best-effort and should be validated against a real
+    policy export. IMPORTANT: any key that is absent or misnamed simply leaves its
+    field None/empty — downstream analyzers gate on presence, so an unmatched key
+    yields no finding (fail-safe; never a false positive).
+    """
+    prefs: dict[str, str] = {}
+    for pref in root.findall(".//preference"):
+        name = pref.find("name")
+        value = pref.find("value")
+        if name is not None and name.text and value is not None and value.text is not None:
+            prefs[name.text.strip()] = value.text.strip()
+
+    def as_int(key):
+        try:
+            return int(prefs[key])
+        except (KeyError, ValueError):
+            return None
+
+    def as_bool(key):
+        v = prefs.get(key)
+        return None if v is None else v.lower() in ("yes", "true", "1", "on")
+
+    def as_ports(*keys):
+        for key in keys:
+            if key in prefs:
+                return [int(p) for p in prefs[key].replace(" ", "").split(",") if p.isdigit()]
+        return []
+
+    # --- Engine performance (verified key names) ---
+    if scan_config.max_hosts_per_scan is None:
+        scan_config.max_hosts_per_scan = as_int("max_hosts")
+    if scan_config.max_checks_per_host is None:
+        scan_config.max_checks_per_host = as_int("max_checks")
+    scan_config.max_tcp_sessions_per_host = as_int("host.max_simult_tcp_sessions")
+    scan_config.max_tcp_sessions_per_scan = as_int("max_simult_tcp_sessions")
+    scan_config.slow_down_on_congestion = as_bool("reduce_connections_on_congestion")
+    scan_config.stop_when_unresponsive = as_bool("stop_scan_on_disconnect")
+    if scan_config.network_timeout is None:
+        scan_config.network_timeout = as_int("network_receive_timeout")
+    if scan_config.safe_checks_enabled is None:
+        scan_config.safe_checks_enabled = as_bool("safe_checks")
+
+    # --- Discovery / ping (best-effort keys; fail-safe to None if misnamed) ---
+    scan_config.scan_unresponsive_hosts = as_bool("scan_unresponsive_host")
+    scan_config.ssh_disclaimer_auto_accept = as_bool("auto_accept_disclaimer")
+    scan_config.tcp_ping_ports = as_ports("tcp_ping_dest_ports", "tcp_ping_dest_port")
+    scan_config.udp_ping_ports = as_ports("udp_ping_dest_ports", "udp_ping_dest_port")
+    methods = []
+    for pref_key, label in (("icmp_ping", "ICMP"), ("tcp_ping", "TCP"),
+                            ("arp_ping", "ARP"), ("udp_ping", "UDP")):
+        if as_bool(pref_key):
+            methods.append(label)
+    if methods:
+        scan_config.host_discovery_methods = methods
 
 
 def _parse_host(host_elem: ET.Element) -> HostData:
@@ -463,6 +528,7 @@ def _parse_plugin_19506(output: str, scan_config: ScanConfig) -> None:
         # Fallback: agents run on the host itself, so a loopback scanner IP
         # corroborates an agent scan when "Scan type" was absent/ambiguous.
         elif "scanner ip" in key:
+            scan_config.scanner_ip = value.strip() or None
             if scan_config.sensor_type is None and value.strip() in ("127.0.0.1", "::1"):
                 scan_config.sensor_type = "agent"
 
@@ -482,9 +548,14 @@ def _parse_plugin_19506(output: str, scan_config: ScanConfig) -> None:
         # Network settings
         elif "port range" in key:
             scan_config.port_range = value
-        elif "max checks" in key or "max simultaneous" in key:
+        elif "max checks" in key:
             try:
                 scan_config.max_checks_per_host = int(value.split()[0])
+            except (ValueError, IndexError):
+                pass
+        elif "max hosts" in key:
+            try:
+                scan_config.max_hosts_per_scan = int(value.split()[0])
             except (ValueError, IndexError):
                 pass
         elif "recv timeout" in key or "network timeout" in key:
