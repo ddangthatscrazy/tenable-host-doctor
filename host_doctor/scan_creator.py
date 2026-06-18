@@ -221,6 +221,7 @@ def create_diagnostic_scan_config(
     host: str,
     base_config: Optional[ScanConfig] = None,
     enable_debug: bool = True,
+    unsafe: bool = False,
 ) -> dict[str, Any]:
     """Generate a diagnostic scan configuration dict (Tenable API format).
 
@@ -232,6 +233,9 @@ def create_diagnostic_scan_config(
         host: IP address to target.
         base_config: Optional base configuration to derive policy name from.
         enable_debug: Whether to enable plugin debugging (default: True).
+        unsafe: When True, disables safe checks. Tenable does not recommend
+            disabling safe checks in production — disruptive plugins can crash
+            services or targets — so this defaults to False (safe checks ON).
 
     Returns:
         Scan configuration dict in Tenable API settings format.
@@ -246,7 +250,9 @@ def create_diagnostic_scan_config(
         "targets": host,
         "settings": {
             "plugin_debugging": enable_debug,
-            "safe_checks": False,
+            # Tenable advises against disabling safe checks in production; keep
+            # them ON unless the caller explicitly opts into an unsafe scan.
+            "safe_checks": not unsafe,
             "network_timeout": 10,
             "max_checks_per_host": 5,
         },

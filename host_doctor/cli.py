@@ -544,11 +544,15 @@ def _execute_debug_loop(
               help="Output scan configuration JSON file")
 @click.option("--enable-debug-logging", is_flag=True,
               help="Enable verbose plugin logging")
+@click.option("--unsafe", is_flag=True,
+              help="Disable safe checks in the generated config. NOT recommended in "
+                   "production — disruptive plugins can crash services or targets.")
 def create_diagnostic_scan(
     host: str,
     base_config: Optional[Path],
     output: Path,
     enable_debug_logging: bool,
+    unsafe: bool,
 ):
     """Generate a diagnostic scan configuration for a problematic host.
 
@@ -560,6 +564,12 @@ def create_diagnostic_scan(
           --base-config scan.nessus --output diag.json
     """
     console.print(f"\n[bold]Creating diagnostic scan config[/bold] for {host}\n")
+
+    if unsafe:
+        console.print(
+            "[yellow]⚠ Safe checks DISABLED (--unsafe).[/yellow] Disruptive plugins may "
+            "crash services or targets. Do not run this against production.\n"
+        )
 
     try:
         from host_doctor.scan_creator import create_diagnostic_scan_config
@@ -575,6 +585,7 @@ def create_diagnostic_scan(
             host=host,
             base_config=base_scan_config,
             enable_debug=enable_debug_logging,
+            unsafe=unsafe,
         )
 
         with open(output, "w") as f:
