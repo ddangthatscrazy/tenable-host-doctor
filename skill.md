@@ -96,28 +96,31 @@ debugging_on = (
 
 If `debugging_on` is False, note this — the scan is missing detailed diagnostic data. See the **Debug Logging** section below.
 
-### Step 4 — Enrich with your own analysis
+### Step 4 — Enrich with your own analysis (REQUIRED — do not skip)
 
-After running the deterministic analyzers, you (Claude) add value by:
+**This step is your analysis, not code to execute.** Before generating the report, you must read the raw plugin outputs and write your interpretation in the conversation. Do not proceed to Step 5 until this is done.
 
-- Reading the raw output from key diagnostic plugins and interpreting what they mean in plain language. Useful plugins to check:
-  - **19506** — Scan configuration details (credentials used, timeouts, port scanner type)
-  - **104410** — Authentication failure details (exact error message, protocol, username)
-  - **84239** — Auth debug log (SSH commands attempted, errors)
-  - **141118** — SSH credential status
-  - **102094** — Windows SMB login status
+First, read the key diagnostic plugin outputs:
 
 ```python
-# Example: read plugin output for deeper context
-p19506 = host_data.get_plugin_output(19506)
-p104410 = host_data.get_plugin_output(104410)
-p84239 = host_data.get_plugin_output(84239)
+p19506  = host_data.get_plugin_output(19506)   # Scan config: credentials, timeouts, port scanner
+p104410 = host_data.get_plugin_output(104410)  # Auth failure: exact error, protocol, username
+p84239  = host_data.get_plugin_output(84239)   # Auth debug log: SSH commands attempted
+p141118 = host_data.get_plugin_output(141118)  # SSH credential status
+p102094 = host_data.get_plugin_output(102094)  # Windows SMB login status
 ```
 
-- Connecting dots across findings (e.g., "auth succeeded but no patch data" + "LocalAccountTokenFilterPolicy" → UAC blocking remote registry)
-- Prioritizing which finding to fix first
-- Providing specific, step-by-step remediation tailored to what you found (not generic advice)
-- Noting if the findings make sense together or suggest an unusual configuration
+Then, **in your response to the user**, you must:
+
+1. **Interpret the plugin outputs** — explain in plain language what each relevant plugin is telling you, not just what category it falls into
+2. **Connect the dots** — look for relationships between findings that the deterministic analyzers surface independently. Examples:
+   - Auth succeeded (141118 present) + no patch plugins ran → privilege issue or UAC/registry blocking, not a credential problem
+   - Auth failed (104410) + port 22 open + no SSH indicators → credentials wrong, not a network issue
+   - Low plugin count + no auth failure plugin → scan may not have attempted credentials at all
+3. **Prioritize** — tell the user which finding to address first and why
+4. **Tailor the remediation** — use what you found in the plugin outputs to give specific, actionable steps, not generic advice. Include exact values (usernames, error strings, ports) from the plugin output where available.
+
+Do not summarize the findings list back to the user — they can read that in the report. Your job here is to add interpretation and context that the deterministic analysis cannot.
 
 ### Step 5 — Generate a report
 
