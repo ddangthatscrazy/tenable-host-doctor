@@ -475,6 +475,9 @@ Be specific - cite plugin IDs and exact error messages."""
         findings.extend(analyze_plugin_coverage(self.host_data, self.scan_config))
         findings.extend(detect_missing_critical_families(self.host_data))
 
+        from host_doctor.analyzers.tuning import analyze_scan_tuning
+        findings.extend(analyze_scan_tuning(self.host_data, self.scan_config))
+
         # Run debug detection last so it can see what other analyzers found
         findings.extend(detect_missing_debug_data(self.host_data, self.scan_config, findings))
 
