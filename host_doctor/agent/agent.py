@@ -481,6 +481,9 @@ Be specific - cite plugin IDs and exact error messages."""
         from host_doctor.analyzers.validation import analyze_validation
         findings.extend(analyze_validation(self.host_data, self.scan_config))
 
+        from host_doctor.analyzers.discovery import analyze_discovery
+        findings.extend(analyze_discovery(self.host_data, self.scan_config))
+
         # Run debug detection last so it can see what other analyzers found
         findings.extend(detect_missing_debug_data(self.host_data, self.scan_config, findings))
 
