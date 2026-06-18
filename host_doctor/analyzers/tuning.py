@@ -100,11 +100,14 @@ def analyze_scan_tuning(host_data: HostData, scan_config: ScanConfig) -> list[Fi
     families = {(v.family or "") for v in host_data.vulnerabilities}
     if any("compliance" in f.lower() for f in families):
         findings.append(_tuning(
-            "Compliance Auditing Present on a Slow Scan",
-            "This scan ran compliance audits and was slow. Authority-based audits (CIS/DISA) "
-            "usually have little impact, but File Content audits have a significant runtime cost.",
-            "If your audits include File Content checks, narrow their scope (paths/patterns).",
-            "Keep audit selection targeted to the scan's actual compliance scope.",
+            "Compliance Auditing May Be Slowing the Scan",
+            "This scan ran compliance audits and was slow. Most authority-based audits "
+            "(CIS/DISA) have little runtime impact, so this is only a likely cause IF the "
+            "policy includes File Content audits, which are the expensive ones. Host Doctor "
+            "cannot tell from the export which audit types are enabled, so treat this as a "
+            "lead to check, not a confirmed cause.",
+            "Check whether the policy includes File Content audits; if so, narrow their scope (paths/patterns).",
+            "Otherwise, compliance auditing is unlikely to be the main slowdown — look at the other tuning items.",
         ))
 
     return findings

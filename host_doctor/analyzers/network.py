@@ -66,6 +66,13 @@ def analyze_network(host_data: HostData, scan_config: ScanConfig) -> list[Findin
     """
     findings = []
 
+    # Agent scans perform no network reachability or port scanning, so none of the
+    # connectivity findings below apply. Return early to prevent false positives —
+    # most importantly a CRITICAL "Host Unreachable" that would contradict the
+    # AGENT_NO_DATA verdict, and "Suspiciously Fast Scan" (agents are legitimately fast).
+    if getattr(scan_config, "sensor_type", None) == "agent":
+        return findings
+
     # Check if host was unreachable
     if not host_data.is_reachable:
         finding = Finding(

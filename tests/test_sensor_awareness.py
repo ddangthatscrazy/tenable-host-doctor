@@ -122,3 +122,15 @@ def test_scanner_sensor_type_still_uses_scanner_logic():
     cfg.sensor_type = "scanner"
     host = make_host([(104410, "Protocol : SSH\nFailed to authenticate")])
     assert classify_credential_state(host, cfg).root_cause == RootCause.CREDENTIAL_FAILURE
+
+
+# --- P1 regression: agent scan must never produce a network "Host Unreachable" ---
+
+def test_agent_unreachable_does_not_fire_host_unreachable():
+    """An agent scan with is_reachable=False must NOT yield a CRITICAL Host
+    Unreachable finding — that would contradict the AGENT_NO_DATA verdict."""
+    host = HostData(host_ip="10.0.0.1", operating_system="Windows",
+                    plugins={}, vulnerabilities=[], is_reachable=False)
+    titles = [f.title for f in analyze_network(host, agent_cfg())]
+    assert "Host Unreachable" not in titles
+    assert titles == []  # agents get no network/connectivity findings at all

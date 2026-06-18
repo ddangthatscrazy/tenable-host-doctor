@@ -86,7 +86,7 @@ def test_compliance_flagged_when_slow():
     h = slow()
     h.vulnerabilities.append(Vulnerability(99999, "audit", "Policy Compliance", 0))
     titles = _titles(h, cfg)
-    assert "Compliance Auditing Present on a Slow Scan" in titles
+    assert "Compliance Auditing May Be Slowing the Scan" in titles
 
 
 def test_compliance_not_flagged_when_fast():
