@@ -28,6 +28,11 @@ DIAGNOSTIC_PLUGINS = {
     122503: "Integration Credential Status - Failure",
     10428: "SMB Registry Not Fully Accessible",
     35453: "Windows Update Reboot Required",
+    24269: "WMI Available",
+    10400: "SMB Registry Remotely Accessible",
+    22869: "Software Enumeration (SSH)",
+    122502: "Integration Credential Status - Valid",
+    27576: "Firewall Detection",
     # --- Target Credential Status by Authentication Protocol (per-protocol auth) ---
     104410: "Target Credential Status by Authentication Protocol - Failure for Provided Credentials",
     110723: "Target Credential Status by Authentication Protocol - No Credentials Provided",

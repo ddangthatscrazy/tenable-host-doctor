@@ -161,6 +161,18 @@ def analyze_network(host_data: HostData, scan_config: ScanConfig) -> list[Findin
         and len(open_ports) < 3
         and len(host_data.vulnerabilities) > 0
     ):
+        port_evidence = [
+            f"Open ports found: {sorted(list(open_ports))}",
+            "Typical servers have 5-20+ accessible ports",
+            "May indicate host-based firewall or network filtering",
+        ]
+        # 27576 (Firewall Detection) is supporting context, not proof: it means the
+        # host *appears* protected by a firewall based on SYN/TCP scanner responses.
+        if host_data.has_plugin(27576):
+            port_evidence.append(
+                "Firewall/filtering context: plugin 27576 detected — the host appears to be "
+                "behind a firewall (based on SYN/TCP scanner responses), consistent with filtering."
+            )
         finding = Finding(
             category=FindingCategory.NETWORK,
             severity=Severity.MEDIUM,
@@ -169,18 +181,14 @@ def analyze_network(host_data: HostData, scan_config: ScanConfig) -> list[Findin
                 f"Only {len(open_ports)} unique ports found open. This may indicate "
                 "firewall filtering or restrictive network ACLs."
             ),
-            evidence=[
-                f"Open ports found: {sorted(list(open_ports))}",
-                "Typical servers have 5-20+ accessible ports",
-                "May indicate host-based firewall or network filtering",
-            ],
+            evidence=port_evidence,
             remediation=[
                 "Review firewall rules on target host",
                 "Check network ACLs/security groups",
                 "Verify scanner can reach all required ports",
                 "Consider using different port scan range",
             ],
-            plugin_ids=[],
+            plugin_ids=[27576] if host_data.has_plugin(27576) else [],
         )
         findings.append(finding)
 

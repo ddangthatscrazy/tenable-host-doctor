@@ -17,6 +17,8 @@ WINDOWS_AUTH_SUCCESS_PLUGINS = {
     10396: "Microsoft Windows SMB Shares Access",
     26917: "Microsoft Windows SMB Registry : Registry access attempted",
     20811: "Microsoft Windows Installed Software Enumeration (credentialed check)",
+    24269: "WMI (Windows Management Instrumentation) Available",
+    10400: "Microsoft Windows SMB Registry Remotely Accessible",
 }
 
 # Authoritative success signals that apply across protocols.
@@ -26,9 +28,17 @@ AUTHORITATIVE_SUCCESS_PLUGINS = {
     141118: "Target Credential Status by Authentication Protocol - Valid Credentials Provided",
 }
 
+# Integration / patch-management credential success. This is a SEPARATE dimension:
+# it proves an integration login worked, NOT that host SSH/SMB auth succeeded, so it
+# must never satisfy host any_success (else a patch-mgmt login could mask a host failure).
+INTEGRATION_SUCCESS_PLUGINS = {
+    122502: "Integration Credential Status by Authentication Protocol - Valid Credentials Provided",
+}
+
 SSH_AUTH_SUCCESS_PLUGINS = {
     141118: "Target Credential Status by Authentication Protocol - Valid Credentials Provided",
-    12634: "SSH Protocol Versions Supported",
+    12634: "Authenticated Check: OS Name and Installed Package Enumeration",
+    22869: "Software Enumeration (SSH)",
     56300: "KVM / QEMU Guest Detection (credentialed check)",
 }
 
@@ -187,9 +197,16 @@ def check_any_auth_success(host_data: HostData) -> dict:
         windows["success"] or ssh["success"] or vmware["success"] or authoritative
     )
 
+    # Integration success is tracked separately and deliberately excluded from
+    # any_success: a successful patch-management login is not host authentication.
+    integration_success = any(
+        host_data.has_plugin(pid) for pid in INTEGRATION_SUCCESS_PLUGINS
+    )
+
     return {
         "windows": windows,
         "ssh": ssh,
         "vmware": vmware,
         "any_success": any_success,
+        "integration_success": integration_success,
     }
