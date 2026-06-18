@@ -11,6 +11,9 @@ from host_doctor.analyzers.credential_state import RootCause
 from host_doctor.models import HostData, ScanConfig
 
 # Auth-problem verdicts where protocol-specific next steps add value.
+# NOTE: LOCAL_CHECKS_FAILED_OTHER is deliberately excluded — the classifier assigns
+# it precisely when 21745 fired for a NON-auth, non-socket reason, so attaching
+# credential next-steps would contradict the verdict's own conclusion.
 _ENRICHABLE = {
     RootCause.CREDENTIAL_FAILURE,
     RootCause.NO_CREDENTIALS_PROVIDED,
@@ -18,7 +21,6 @@ _ENRICHABLE = {
     RootCause.REGISTRY_INACCESSIBLE,
     RootCause.REGISTRY_PARTIAL_ACCESS,
     RootCause.INTERMITTENT_AUTH,
-    RootCause.LOCAL_CHECKS_FAILED_OTHER,
     RootCause.DATABASE_AUTH_FAILURE,
 }
 

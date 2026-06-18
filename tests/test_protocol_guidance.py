@@ -73,3 +73,13 @@ def test_enrichment_does_not_change_verdict():
     # And no extra findings are fabricated by enrichment (same count as causes).
     findings = analyze_authentication(host, ScanConfig())
     assert len(findings) >= 1
+
+
+# --- P2 regression: non-auth verdict must NOT get credential playbooks --------
+
+def test_local_checks_failed_other_is_not_enriched():
+    """LOCAL_CHECKS_FAILED_OTHER means 21745 fired for a non-auth reason, so it
+    must NOT receive credential-focused remediation."""
+    host = make_host([(21745, "Local checks not run")], os="Ubuntu Linux 22.04")
+    steps = remediation_for_protocol(RootCause.LOCAL_CHECKS_FAILED_OTHER, "ssh", host, ScanConfig())
+    assert steps == []
