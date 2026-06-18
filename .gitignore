@@ -90,3 +90,6 @@ WHY_MERGE_REPORTHOST_ENTRIES.md
 
 # Local patch artifacts
 *.patch
+
+# Local patch artifacts
+*.patch
