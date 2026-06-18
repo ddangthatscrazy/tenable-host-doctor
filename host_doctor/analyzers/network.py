@@ -2,6 +2,51 @@
 
 from host_doctor.models import Finding, FindingCategory, HostData, ScanConfig, Severity
 
+# Local port enumerators. When any of these ran, Nessus enumerated ports locally
+# (netstat/SNMP), the effective range becomes "all", and network port scanners are
+# disabled — so a low open-port count reflects the host's actual listening services,
+# not firewall filtering. (Verified against Tenable's Useful Plugins Guide.)
+LOCAL_PORT_ENUM_PLUGINS = {
+    14272: "Netstat Portscanner (SSH)",
+    34220: "Netstat Portscanner (WMI)",
+    14274: "Nessus SNMP Scanner",
+}
+
+
+def _is_narrow_port_range(port_range: str) -> bool:
+    """True if the configured range is an explicit short list (few ports by design).
+
+    "default" (~4,790 ports) and "all" (65,536) are broad. A span like "1-1024" is
+    broad enough that few open ports is still meaningful, so spans are not narrow.
+    An explicit comma list of <=20 individual ports IS narrow.
+    """
+    pr = port_range.strip().lower()
+    if not pr or pr in ("default", "all") or "-" in pr:
+        return False
+    parts = [p for p in pr.replace(" ", "").split(",") if p]
+    return 0 < len(parts) <= 20
+
+
+def _low_port_count_explained(host_data: HostData, scan_config: ScanConfig):
+    """Return a reason string if a low open-port count is expected, else None.
+
+    This prevents "Limited Port Access" from blaming a firewall when the scan
+    config or method already explains the result. Note: SYN being the scanner is
+    NOT a reason — SYN is a full network port scanner that covers the whole range.
+    """
+    # 1. Local port enumeration ran -> count reflects actual listening services.
+    for pid, name in LOCAL_PORT_ENUM_PLUGINS.items():
+        if host_data.has_plugin(pid):
+            return (
+                f"Local port enumeration ran ({name}, plugin {pid}); the open-port list "
+                "reflects the host's actual listening services, not firewall filtering."
+            )
+    # 2. Narrow configured port range -> few open ports is expected by design.
+    pr = getattr(scan_config, "port_range", None)
+    if pr and _is_narrow_port_range(pr):
+        return f"The scan's configured port range ('{pr}') is narrow, so a low open-port count is expected."
+    return None
+
 
 def analyze_network(host_data: HostData, scan_config: ScanConfig) -> list[Finding]:
     """Analyze network connectivity and timeout issues.
@@ -101,15 +146,18 @@ def analyze_network(host_data: HostData, scan_config: ScanConfig) -> list[Findin
             findings.append(finding)
 
     # Check for very few open ports (possible firewall blocking).
-    # Skip for agent scans: agents run on the host and do no network port
-    # scanning, so "few open ports" is expected, not a firewall signal.
+    # Skip for agent scans (no network port scanning) and when the scan config or
+    # method already explains the low count (narrow range or local enumeration).
     open_ports = set()
     for vuln in host_data.vulnerabilities:
         if vuln.port:
             open_ports.add(vuln.port)
 
+    port_count_explanation = _low_port_count_explained(host_data, scan_config)
+
     if (
         getattr(scan_config, "sensor_type", None) != "agent"
+        and port_count_explanation is None
         and len(open_ports) < 3
         and len(host_data.vulnerabilities) > 0
     ):
