@@ -96,11 +96,11 @@ debugging_on = (
 
 If `debugging_on` is False, note this — the scan is missing detailed diagnostic data. See the **Debug Logging** section below.
 
-### Step 4 — Enrich with your own analysis (REQUIRED — do not skip)
+### Step 4 — Enrich findings with your analysis (REQUIRED — do not skip)
 
-**This step is your analysis, not code to execute.** Before generating the report, you must read the raw plugin outputs and write your interpretation in the conversation. Do not proceed to Step 5 until this is done.
+**Your enrichment must be written into the report, not just into the chat.** The report template renders two enrichment fields — `llm_narrative` on individual findings and a top-level Executive Summary finding. If you do not populate these, the report will contain only raw deterministic output with no LLM layer.
 
-First, read the key diagnostic plugin outputs:
+#### 4a — Read key plugin outputs
 
 ```python
 p19506  = host_data.get_plugin_output(19506)   # Scan config: credentials, timeouts, port scanner
@@ -110,17 +110,49 @@ p141118 = host_data.get_plugin_output(141118)  # SSH credential status
 p102094 = host_data.get_plugin_output(102094)  # Windows SMB login status
 ```
 
-Then, **in your response to the user**, you must:
+#### 4b — Populate llm_narrative on each finding
 
-1. **Interpret the plugin outputs** — explain in plain language what each relevant plugin is telling you, not just what category it falls into
-2. **Connect the dots** — look for relationships between findings that the deterministic analyzers surface independently. Examples:
-   - Auth succeeded (141118 present) + no patch plugins ran → privilege issue or UAC/registry blocking, not a credential problem
-   - Auth failed (104410) + port 22 open + no SSH indicators → credentials wrong, not a network issue
-   - Low plugin count + no auth failure plugin → scan may not have attempted credentials at all
-3. **Prioritize** — tell the user which finding to address first and why
-4. **Tailor the remediation** — use what you found in the plugin outputs to give specific, actionable steps, not generic advice. Include exact values (usernames, error strings, ports) from the plugin output where available.
+For every finding in `all_findings`, set `finding.llm_narrative` to a plain-language interpretation grounded in what you actually read from the plugin outputs. Use exact values (usernames, error strings, ports) where available. Examples of what good enrichment looks like:
 
-Do not summarize the findings list back to the user — they can read that in the report. Your job here is to add interpretation and context that the deterministic analysis cannot.
+- Instead of: *"Authentication failed"*
+- Write: *"Plugin 104410 shows SSH login was attempted as user 'scanner' on port 22 and was rejected with 'Permission denied (publickey,password)'. This means neither key-based nor password auth succeeded — either the user doesn't exist on this host, the password is wrong, or the account is locked. Check /var/log/auth.log on the target for the specific rejection reason."*
+
+```python
+for finding in all_findings:
+    finding.llm_narrative = "your interpretation here based on plugin output"
+```
+
+#### 4c — Create an Executive Summary finding
+
+Create a single Finding that summarises the root cause and top recommendation across all findings. This renders as the top section of the report.
+
+```python
+from host_doctor.models import Finding, FindingCategory, Severity
+
+executive_summary = Finding(
+    category=FindingCategory.CONFIGURATION,
+    severity=Severity.INFO,
+    title="Executive Summary",
+    description="",
+    evidence=[],
+    remediation=[],
+    llm_narrative=(
+        "Your 2-4 sentence plain-language summary here. State the root cause, "
+        "what it means for scan quality, and the single most important fix."
+    ),
+)
+
+all_findings = [executive_summary] + all_findings
+```
+
+#### 4d — Connect the dots
+
+Before writing the narratives, look for cross-finding patterns the deterministic analyzers surface independently:
+- Auth succeeded (141118 present) + no patch plugins ran → privilege issue or UAC/registry blocking, not a credential problem
+- Auth failed (104410) + port 22 open + no SSH indicators → wrong credentials, not a network issue
+- Low plugin count + no auth failure plugin → credentials may not have been attempted at all
+
+Use these connections to inform both the per-finding narratives and the Executive Summary.
 
 ### Step 5 — Generate a report
 
@@ -134,7 +166,7 @@ report = DiagnosticReport(
     scan_name=scan_config.scan_name or "Unknown Scan",
     generated_at=datetime.now(),
     nessus_file=str(nessus_path),
-    findings=all_findings,
+    findings=all_findings,  # includes executive_summary + enriched findings
     host_data=host_data,
     scan_config=scan_config,
 )
@@ -142,7 +174,7 @@ report = DiagnosticReport(
 generate_report(report, Path(f"host_{host_data.host_ip}_report.html"), "html")
 ```
 
-Present the report to the user and summarize the top 1-3 findings in plain language.
+Present the report to the user. Do not re-summarise the findings in chat — your analysis is already in the report.
 
 ---
 
