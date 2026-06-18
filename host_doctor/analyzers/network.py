@@ -100,13 +100,19 @@ def analyze_network(host_data: HostData, scan_config: ScanConfig) -> list[Findin
             )
             findings.append(finding)
 
-    # Check for very few open ports (possible firewall blocking)
+    # Check for very few open ports (possible firewall blocking).
+    # Skip for agent scans: agents run on the host and do no network port
+    # scanning, so "few open ports" is expected, not a firewall signal.
     open_ports = set()
     for vuln in host_data.vulnerabilities:
         if vuln.port:
             open_ports.add(vuln.port)
 
-    if len(open_ports) < 3 and len(host_data.vulnerabilities) > 0:
+    if (
+        getattr(scan_config, "sensor_type", None) != "agent"
+        and len(open_ports) < 3
+        and len(host_data.vulnerabilities) > 0
+    ):
         finding = Finding(
             category=FindingCategory.NETWORK,
             severity=Severity.MEDIUM,

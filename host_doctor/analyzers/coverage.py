@@ -76,8 +76,15 @@ def analyze_plugin_coverage(host_data: HostData, scan_config: ScanConfig) -> lis
 
     # Authoritative gate: if credentialed local checks actually ran, the host is
     # covered regardless of absolute plugin count. Skip the count baselines.
-    state = classify_credential_state(host_data)
+    state = classify_credential_state(host_data, scan_config)
     if state.root_cause == RootCause.SUCCESS:
+        return findings
+
+    # Agent scans: the count baselines and their SSH/SMB credential remediation
+    # don't apply (agents are inherently credentialed, do no network checks). The
+    # AGENT_NO_DATA verdict from the auth analyzer already explains a data gap, so
+    # don't add scanner-oriented coverage noise here.
+    if getattr(scan_config, "sensor_type", None) == "agent":
         return findings
 
     # Use vulnerabilities (all report items) not plugins dict (filtered subset)

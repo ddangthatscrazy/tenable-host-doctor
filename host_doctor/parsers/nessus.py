@@ -445,6 +445,17 @@ def _parse_plugin_19506(output: str, scan_config: ScanConfig) -> None:
             if not scan_config.policy_name:
                 scan_config.policy_name = value
 
+        # Sensor type. Primary signal: the "Scan type" field contains "Agent"
+        # (e.g. "Windows Agent") for agent scans. NOTE: "Scanner edition used"
+        # is NOT reliable — it can read "Nessus Scanner" even for agent scans.
+        elif key == "scan type" or key.endswith("scan type"):
+            scan_config.sensor_type = "agent" if "agent" in value.lower() else "scanner"
+        # Fallback: agents run on the host itself, so a loopback scanner IP
+        # corroborates an agent scan when "Scan type" was absent/ambiguous.
+        elif "scanner ip" in key:
+            if scan_config.sensor_type is None and value.strip() in ("127.0.0.1", "::1"):
+                scan_config.sensor_type = "agent"
+
         # Security settings
         elif "safe checks" in key:
             scan_config.safe_checks_enabled = "yes" in value.lower() or "on" in value.lower()

@@ -28,6 +28,7 @@ _SEVERITY: dict[RootCause, Severity] = {
     RootCause.REGISTRY_INACCESSIBLE: Severity.MEDIUM,
     RootCause.LOCAL_CHECKS_FAILED_OTHER: Severity.HIGH,
     RootCause.INDETERMINATE: Severity.MEDIUM,
+    RootCause.AGENT_NO_DATA: Severity.HIGH,
 }
 
 _TITLE: dict[RootCause, str] = {
@@ -41,6 +42,7 @@ _TITLE: dict[RootCause, str] = {
     RootCause.REGISTRY_INACCESSIBLE: "Windows Registry Access Denied",
     RootCause.LOCAL_CHECKS_FAILED_OTHER: "Local Checks Did Not Run",
     RootCause.INDETERMINATE: "Authentication Status Indeterminate",
+    RootCause.AGENT_NO_DATA: "Agent Scan Returned No Assessment Data",
 }
 
 _DESCRIPTION: dict[RootCause, str] = {
@@ -74,6 +76,11 @@ _DESCRIPTION: dict[RootCause, str] = {
     RootCause.INDETERMINATE: (
         "There is not enough evidence to determine authentication status. The credential-status plugins "
         "are absent, which usually means plugin debugging was off or the export is sparse."
+    ),
+    RootCause.AGENT_NO_DATA: (
+        "This is an agent scan that returned no patch-assessment or local-check data. Agents are installed "
+        "on the asset and need no managed credentials, so this is not a credential or connectivity problem — "
+        "the agent simply produced no assessment results."
     ),
 }
 
@@ -122,6 +129,12 @@ _REMEDIATION: dict[RootCause, list[str]] = {
         "Re-run with plugin debugging enabled to populate plugin 84239 and the credential-status family.",
         "Use the diagnostic scan generator to produce a policy with debug logging on.",
     ],
+    RootCause.AGENT_NO_DATA: [
+        "Confirm the agent is linked and reporting in to Tenable (Sensors > Nessus Agents).",
+        "Verify the agent actually ran a scan in this window (triggered or scheduled).",
+        "Check the agent's assigned scan policy has plugins enabled.",
+        "Note: managed credentials and network/port settings do not apply to agent scans.",
+    ],
 }
 
 
@@ -152,7 +165,7 @@ def analyze_authentication(host_data: HostData, scan_config: ScanConfig) -> list
     caveats) plus additive findings for privilege/registry issues that can
     coexist with success.
     """
-    state = classify_credential_state(host_data)
+    state = classify_credential_state(host_data, scan_config)
     findings: list[Finding] = []
 
     # Primary verdict. Suppress the INFO "succeeded" finding when clean, but keep

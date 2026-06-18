@@ -82,6 +82,7 @@ class RootCause(str, Enum):
     NETWORK_UNREACHABLE = "network_unreachable"      # only connectivity plugins
     LOCAL_CHECKS_FAILED_OTHER = "local_checks_failed_other"  # 21745, non-auth/non-socket
     INDETERMINATE = "indeterminate"                  # insufficient evidence
+    AGENT_NO_DATA = "agent_no_data"                  # agent scan returned no assessment data
 
 
 @dataclass
@@ -151,12 +152,24 @@ def _collect_additive(host_data: HostData) -> tuple[list[RootCause], list[str], 
     return causes, evidence, pids
 
 
-def classify_credential_state(host_data: HostData) -> CredentialState:
-    """Resolve a host to a single disambiguated credential/local-checks verdict."""
+def classify_credential_state(host_data: HostData, scan_config=None) -> CredentialState:
+    """Resolve a host to a single disambiguated credential/local-checks verdict.
+
+    When scan_config indicates an agent scan, uses agent-specific logic: agents
+    are inherently credentialed and perform no network/remote checks, so the
+    scanner-oriented verdicts (no-credentials, credential-failure, connectivity,
+    unreachable) don't apply. scan_config=None preserves the original scanner
+    behavior exactly.
+    """
     has = host_data.has_plugin
     out = lambda pid: host_data.get_plugin_output(pid) or ""  # noqa: E731
 
     additive, add_evidence, add_pids = _collect_additive(host_data)
+
+    # --- Agent scans: short-circuit to agent-specific logic ---
+    sensor_type = getattr(scan_config, "sensor_type", None) if scan_config else None
+    if sensor_type == "agent":
+        return _classify_agent(host_data, additive, add_evidence, add_pids)
 
     # --- Gate: did the host respond at all? ---
     # A host that produced discovery-response plugins, assessment plugins, or any
@@ -259,6 +272,51 @@ def classify_credential_state(host_data: HostData) -> CredentialState:
         )
 
     # Attach additive privilege/registry findings to whatever primary verdict we reached.
+    s.additive = additive
+    s.evidence += add_evidence
+    s.plugin_ids += add_pids
+    return s
+
+
+def _classify_agent(host_data, additive, add_evidence, add_pids) -> CredentialState:
+    """Agent-specific classification.
+
+    Agents are installed on the asset and already have the access needed for
+    local security checks, so they use no managed credentials and perform no
+    network/remote checks. That makes the scanner verdicts (no-credentials,
+    credential-failure, connectivity, unreachable) inapplicable. The only
+    questions for an agent scan are: did local checks run, fail, or produce
+    nothing?
+    """
+    has = host_data.has_plugin
+
+    if has(P_LC_AVAILABLE) or _has_patch_families(host_data):
+        s = CredentialState(
+            RootCause.SUCCESS,
+            evidence=["Agent scan: local checks ran (agents are inherently credentialed)."],
+            plugin_ids=[P_LC_AVAILABLE] if has(P_LC_AVAILABLE) else [],
+        )
+    elif has(P_LC_FAILED):
+        s = CredentialState(
+            RootCause.LOCAL_CHECKS_FAILED_OTHER,
+            confidence=0.7,
+            evidence=[
+                f"Agent scan: plugin {P_LC_FAILED} indicates local checks failed to run "
+                "(an OS/plugin reason — agents don't have managed-credential failures).",
+            ],
+            plugin_ids=[P_LC_FAILED],
+        )
+    else:
+        s = CredentialState(
+            RootCause.AGENT_NO_DATA,
+            confidence=0.5,
+            evidence=[
+                "Agent scan returned no patch-assessment or local-check data.",
+                "Agents use no managed credentials and run no network checks, so "
+                "credential and connectivity diagnoses do not apply here.",
+            ],
+        )
+
     s.additive = additive
     s.evidence += add_evidence
     s.plugin_ids += add_pids

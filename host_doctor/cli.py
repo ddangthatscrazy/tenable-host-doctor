@@ -36,6 +36,8 @@ def main():
 @click.option("--auto-debug", is_flag=True,
               help="Automatically enable plugin debugging and re-scan if debug data is missing "
                    "(requires --scan-id and API credentials)")
+@click.option("--sensor-type", type=click.Choice(["scanner", "agent", "auto"]),
+              default="auto", help="Override sensor-type detection (default: auto-detect).")
 @click.option("--verbose", "-v", is_flag=True, help="Verbose output")
 def analyze(
     nessus_file: Optional[Path],
@@ -48,6 +50,7 @@ def analyze(
     output: Optional[Path],
     format: str,
     auto_debug: bool,
+    sensor_type: str,
     verbose: bool,
 ):
     """Analyze a single host from a Nessus scan.
@@ -260,6 +263,10 @@ def _run_analysis(
         progress.update(task, description="✓ Parsed .nessus file")
 
         scan_config = scan_data["scan_config"]
+
+        # Manual sensor-type override (auto = trust parser detection).
+        if sensor_type != "auto":
+            scan_config.sensor_type = sensor_type
 
         # Fetch attachments if scan_id provided
         if scan_id:

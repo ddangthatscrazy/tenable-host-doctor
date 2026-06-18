@@ -105,6 +105,10 @@ class ScanConfig:
     scan_uuid: Optional[str] = None
     policy_name: Optional[str] = None
     scanner_name: Optional[str] = None
+    # Sensor type: "scanner" (network/remote) or "agent" (local). None = unknown.
+    # Drives sensor-aware diagnosis — agent scans need no managed credentials and
+    # perform no network/remote checks, so scanner-oriented findings don't apply.
+    sensor_type: Optional[str] = None
     scan_start: Optional[datetime] = None
     scan_end: Optional[datetime] = None
     history_id: Optional[int] = None  # For API attachment fetching
