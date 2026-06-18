@@ -478,6 +478,10 @@ Be specific - cite plugin IDs and exact error messages."""
         # Run debug detection last so it can see what other analyzers found
         findings.extend(detect_missing_debug_data(self.host_data, self.scan_config, findings))
 
+        # Launched-plugins / audit-trail enrichment (sees all prior findings).
+        from host_doctor.analyzers.launched_plugins import analyze_launched_plugins
+        findings.extend(analyze_launched_plugins(self.host_data, self.scan_config, findings))
+
         return findings
 
     def _enhance_findings_with_llm_reasoning(self, findings: list[Finding]) -> list[Finding]:

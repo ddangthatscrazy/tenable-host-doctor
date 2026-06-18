@@ -23,6 +23,7 @@ from host_doctor.models import (
 DIAGNOSTIC_PLUGINS = {
     19506: "Nessus Scan Information",
     84239: "Authentication Failure - Debugging Log",
+    112154: "Enumerate Launched Plugins",
     # --- Target Credential Status by Authentication Protocol (per-protocol auth) ---
     104410: "Target Credential Status by Authentication Protocol - Failure for Provided Credentials",
     110723: "Target Credential Status by Authentication Protocol - No Credentials Provided",

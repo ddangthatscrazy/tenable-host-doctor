@@ -329,6 +329,55 @@ class AttachmentFetcher:
             logger.warning(f"Could not fetch SSH command logs: {e}")
             return None
 
+    def get_launched_plugins(
+        self,
+        scan_id: int,
+        host_id: int,
+        history_id: Optional[int] = None,
+    ) -> Optional[str]:
+        """Retrieve plugin 112154 (Enumerate Launched Plugins) output for a host.
+
+        Returns the list of plugins that actually launched during the scan, used
+        to answer "why didn't this plugin run?". Mirrors get_ssh_command_logs and
+        uses the verified scans.plugin_output API. There is no audit-trail endpoint
+        in pyTenable's Tenable.io, so the audit trail is not fetched here.
+
+        Args:
+            scan_id: Scan ID or UUID
+            host_id: Host ID from scan results
+            history_id: Optional specific scan run ID
+
+        Returns:
+            Launched-plugins output text, or None if unavailable.
+        """
+        if not self._ensure_initialized():
+            return None
+
+        try:
+            kwargs = {"scan_id": scan_id, "host_id": host_id, "plugin_id": 112154}
+            if history_id:
+                kwargs["history_id"] = history_id
+
+            output = self.tio.scans.plugin_output(**kwargs)
+
+            texts = []
+            if output and "outputs" in output:
+                for output_item in output.get("outputs", []):
+                    text = output_item.get("plugin_output")
+                    if text:
+                        texts.append(text)
+            if texts:
+                content = "\n".join(texts)
+                logger.info(f"Fetched launched-plugins list ({len(content)} bytes)")
+                return content
+
+            logger.debug("No plugin 112154 output found")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Could not fetch launched-plugins list: {e}")
+            return None
+
     def get_all_attachments(
         self,
         scan_id: int,
