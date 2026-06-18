@@ -14,6 +14,7 @@ from host_doctor.analyzers.credential_state import (
     RootCause,
     classify_credential_state,
 )
+from host_doctor.analyzers.protocol_guidance import remediation_for_protocol
 from host_doctor.models import Finding, FindingCategory, HostData, ScanConfig, Severity
 
 # --- Verdict -> presentation maps --------------------------------------------
@@ -199,12 +200,18 @@ def analyze_authentication(host_data: HostData, scan_config: ScanConfig) -> list
     # Primary verdict. Suppress the INFO "succeeded" finding when clean, but keep
     # it if there are additive caveats so the report explains the partial result.
     if state.root_cause != RootCause.SUCCESS or state.additive:
-        findings.append(_finding_for(state.root_cause, state, primary=True))
+        f = _finding_for(state.root_cause, state, primary=True)
+        f.remediation = f.remediation + remediation_for_protocol(
+            state.root_cause, state.protocol, host_data, scan_config)
+        findings.append(f)
 
     # Additive findings (privilege/registry/database/integration) — each carries
     # its own evidence and plugin IDs and can coexist with SUCCESS.
     for issue in state.additive:
-        findings.append(_finding_for_additive(issue))
+        f = _finding_for_additive(issue)
+        f.remediation = f.remediation + remediation_for_protocol(
+            issue.cause, issue.protocol, host_data, scan_config)
+        findings.append(f)
 
     return findings
 
