@@ -27,6 +27,7 @@ _SEVERITY: dict[RootCause, Severity] = {
     RootCause.NETWORK_UNREACHABLE: Severity.CRITICAL,
     RootCause.INSUFFICIENT_PRIVILEGE: Severity.MEDIUM,
     RootCause.REGISTRY_INACCESSIBLE: Severity.MEDIUM,
+    RootCause.REGISTRY_PARTIAL_ACCESS: Severity.LOW,
     RootCause.DATABASE_AUTH_FAILURE: Severity.HIGH,
     RootCause.INTEGRATION_AUTH_FAILURE: Severity.MEDIUM,
     RootCause.LOCAL_CHECKS_FAILED_OTHER: Severity.HIGH,
@@ -43,6 +44,7 @@ _TITLE: dict[RootCause, str] = {
     RootCause.NETWORK_UNREACHABLE: "Host Unreachable",
     RootCause.INSUFFICIENT_PRIVILEGE: "Authenticated but Under-Privileged",
     RootCause.REGISTRY_INACCESSIBLE: "Windows Registry Access Denied",
+    RootCause.REGISTRY_PARTIAL_ACCESS: "Windows Registry Partially Accessible",
     RootCause.DATABASE_AUTH_FAILURE: "Database Authentication Failed",
     RootCause.INTEGRATION_AUTH_FAILURE: "Integration Authentication Failed",
     RootCause.LOCAL_CHECKS_FAILED_OTHER: "Local Checks Did Not Run",
@@ -73,6 +75,9 @@ _DESCRIPTION: dict[RootCause, str] = {
     RootCause.REGISTRY_INACCESSIBLE: (
         "Nessus authenticated but could not access the Windows registry, so registry-based checks and "
         "patch assessment are incomplete."
+    ),
+    RootCause.REGISTRY_PARTIAL_ACCESS: (
+        "The Windows registry is reachable but not fully accessible (plugin 10428). Some registry-based checks may be incomplete. This is a softer condition than a full registry denial — authentication worked, but not every registry key could be read."
     ),
     RootCause.DATABASE_AUTH_FAILURE: (
         "Database credentials provided for this host failed to authenticate (plugin 91822). This is independent of host SSH/SMB authentication — host auth may have succeeded while the database layer did not."
@@ -131,6 +136,10 @@ _REMEDIATION: dict[RootCause, list[str]] = {
         "Enable and start the Remote Registry service on the target.",
         "Set LocalAccountTokenFilterPolicy=1 if using a local admin account (UAC remote-token filtering).",
         "Confirm no GPO blocks remote registry access.",
+    ],
+    RootCause.REGISTRY_PARTIAL_ACCESS: [
+        "Ensure the scan account has full registry read permissions (some keys were inaccessible).",
+        "Check ACLs/GPO on the specific registry hives the missing checks rely on.",
     ],
     RootCause.DATABASE_AUTH_FAILURE: [
         "Verify the database credentials (username, password, service/SID) in the scan policy.",

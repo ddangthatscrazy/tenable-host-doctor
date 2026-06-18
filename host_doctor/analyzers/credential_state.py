@@ -41,6 +41,7 @@ P_WIN_NOT_ADMIN = 24786      # Nessus Windows Scan Not Performed with Admin Priv
 P_WIN_REGISTRY = 26917       # Nessus Cannot Access the Windows Registry
 P_WIN_REG_START = 35705      # SMB Registry: Starting the Registry Service failed
 P_WIN_REG_STOP = 35706       # SMB Registry: Stopping the Registry Service failed
+P_WIN_REG_PARTIAL = 10428    # SMB Registry Not Fully Accessible (partial access)
 P_DB_AUTH_FAIL = 91822       # Database Authentication Failure(s) for Provided Credentials
 P_INTEGRATION_FAIL = 122503  # Integration Credential Status - Failure for Provided Credentials
 P_SSH_RATE_LIMIT = 122501    # SSH Rate Limited Device
@@ -77,6 +78,7 @@ class RootCause(str, Enum):
     SUCCESS = "success"                              # 117887 / patch families present
     INSUFFICIENT_PRIVILEGE = "insufficient_privilege"  # authenticated, under-privileged
     REGISTRY_INACCESSIBLE = "registry_inaccessible"  # Windows registry blocked
+    REGISTRY_PARTIAL_ACCESS = "registry_partial_access"  # additive: registry reachable but partial (10428)
     DATABASE_AUTH_FAILURE = "database_auth_failure"   # additive: DB creds failed (91822)
     INTEGRATION_AUTH_FAILURE = "integration_auth_failure"  # additive: integration creds failed (122503)
     NO_CREDENTIALS_PROVIDED = "no_credentials_provided"  # 110723 — config gap
@@ -162,13 +164,21 @@ def _collect_additive(host_data: HostData) -> list[AdditiveIssue]:
             pids.append(P_SSH_PRIV_ESCALATION)
         issues.append(AdditiveIssue(RootCause.INSUFFICIENT_PRIVILEGE, evidence=ev, plugin_ids=pids))
 
-    # Registry (Windows registry not fully accessible).
-    if any(has(p) for p in (P_WIN_REGISTRY, P_WIN_REG_START, P_WIN_REG_STOP)):
-        pids = [p for p in (P_WIN_REGISTRY, P_WIN_REG_START, P_WIN_REG_STOP) if has(p)]
+    # Registry. Full denial (26917 / service start-stop failures) supersedes the
+    # softer "partially accessible" signal (10428) so they never double-report.
+    full_denial = [p for p in (P_WIN_REGISTRY, P_WIN_REG_START, P_WIN_REG_STOP) if has(p)]
+    if full_denial:
         issues.append(AdditiveIssue(
             RootCause.REGISTRY_INACCESSIBLE,
             evidence=["Windows registry not fully accessible (Remote Registry service / UAC token filtering / GPO)."],
-            plugin_ids=pids,
+            plugin_ids=full_denial,
+        ))
+    elif has(P_WIN_REG_PARTIAL):
+        issues.append(AdditiveIssue(
+            RootCause.REGISTRY_PARTIAL_ACCESS,
+            evidence=[f"Plugin {P_WIN_REG_PARTIAL}: registry is reachable but not fully accessible; some registry-based checks may be incomplete."],
+            plugin_ids=[P_WIN_REG_PARTIAL],
+            severity=Severity.LOW,
         ))
 
     # Database credential failure (separate from host SSH/SMB auth — can coexist

@@ -26,6 +26,8 @@ DIAGNOSTIC_PLUGINS = {
     112154: "Enumerate Launched Plugins",
     91822: "Database Authentication Failure",
     122503: "Integration Credential Status - Failure",
+    10428: "SMB Registry Not Fully Accessible",
+    35453: "Windows Update Reboot Required",
     # --- Target Credential Status by Authentication Protocol (per-protocol auth) ---
     104410: "Target Credential Status by Authentication Protocol - Failure for Provided Credentials",
     110723: "Target Credential Status by Authentication Protocol - No Credentials Provided",
